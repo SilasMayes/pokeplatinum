@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.pokeplatinum.port'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'org.pokeplatinum.port'
+        // Android 10+: the AYN Thor ships Android 13
+        minSdk 29
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
+        versionName System.getenv('VERSION_NAME') ?: 'dev'
+
+        ndk {
+            // libmain.so is built by meson for arm64 only (see .github/workflows/build_android.yml)
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    signingConfigs {
+        // A fixed key so every CI build can be installed over the previous one.
+        // Uninstalling would delete Android/data/org.pokeplatinum.port (and your saves).
+        stable {
+            storeFile file('stable.keystore')
+            storePassword 'android'
+            keyAlias 'pokeplatinum'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.stable
+        }
+        release {
+            signingConfig signingConfigs.stable
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // SDL's Java sources are copied into src/main/java/org/libsdl/app by CI from the
+    // same SDL release the native library is built from, so the two always match.
+}

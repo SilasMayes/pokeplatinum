@@ -1,8 +1,10 @@
 [wrap-git]
 url = https://github.com/cybervisi0n/libntrwifi.git
-revision = main
+# Pinned so the Android patch below keeps applying; bump together with the patch
+revision = e3a86b0304d70db8a0bae965a5f7d96b5e80f025
 depth = 1
 directory = libntrwifi
+diff_files = libntrwifi_android.patch
 
 [provide]
 dependency_names = NitroWiFi

@@ -1,8 +1,10 @@
 [wrap-git]
 url = https://github.com/cybervisi0n/libntrsystem.git
-revision = main
+# Pinned so the Android patch below keeps applying; bump together with the patch
+revision = 97fa995ed33fe2ab8c83ec7068aa3aa5b4c3e12f
 depth = 1
 directory = libntrsystem
+diff_files = libntrsystem_android.patch
 
 [provide]
 dependency_names = NitroSystem

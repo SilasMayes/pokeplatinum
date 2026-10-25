@@ -172,6 +172,13 @@ link_args = [
     '--verbose',
     '-Wl,-Map=main.map'
 ]
+elif (build_target == 'android')
+link_args = [
+    # libmain.so is loaded by SDL's Java activity, which looks up SDL_main
+    '-static-libstdc++',
+    '-Wl,--no-undefined',
+    '-Wl,-z,max-page-size=16384',
+]
 else
 link_args = [
 ]
@@ -300,6 +307,38 @@ trainer_ai_o = custom_target(
         '@INPUT@',
     ],
     depfile: '@BASENAME@.d'
+)
+elif(build_target == 'android')
+trainer_ai_ss = custom_target(
+    'trainer_ai_script.ss',
+    output: 'trainer_ai_script.ss',
+    input: files('src/battle/trainer_ai/script.s'),
+    command: [
+        'gcc',
+        '-D__ASSEMBLER__',
+        '-I', meson.global_source_root() / 'asm',
+        '-I', meson.global_build_root(),
+        '-I', meson.global_source_root() / 'include',
+        '-MD', '-MF', '@DEPFILE@',
+        '-E', '-nostdinc', '-'
+    ],
+    depfile: '@BASENAME@.d',
+    capture: true,
+    feed: true
+)
+
+# The script is pure data (.long tables), so the NDK's integrated assembler can take it
+trainer_ai_o = custom_target(
+    'trainer_ai_script.o',
+    output: 'trainer_ai_script.o',
+    input: trainer_ai_ss,
+    command: meson.get_compiler('c').cmd_array() + [
+        '-c', '-x', 'assembler',
+        '-I', meson.global_source_root() / 'asm',
+        '-I', meson.global_build_root(),
+        '-o', '@OUTPUT@',
+        '@INPUT@',
+    ],
 )
 else
 trainer_ai_ss = custom_target(
@@ -523,6 +562,52 @@ main = executable('main',
 )
 endif
 
+if (build_target == 'android')
+# SDL's Android activity loads libmain.so and calls SDL_main (libntr's main())
+main = shared_library('main',
+    sources: [
+        pokeplatinum_c,
+        c_consts_generators,
+        naix_headers,
+        h_headers,
+        embed_headers,
+    ],
+    objects: trainer_ai_o,
+    c_args: [
+        pokeplatinum_args,
+    ],
+    c_pch: 'include/pch/global_pch.h',
+    include_directories: [
+        public_includes,
+        libcrypto_public_includes,
+        libgds_public_includes,
+        libspl_public_includes,
+        ppwlobby_public_includes,
+    ],
+    dependencies: [
+        nitrosdk_dep,
+        nitrosystem_dep,
+        nitrowifi_dep,
+        nitrodwc_dep,
+        libvct_dep,
+    ],
+    link_with: [
+        libspl,
+        libcrypto_ov97,
+        libcrypto_static,
+        libgds,
+        libdwcenc,
+        libdwcppwlobby,
+        libdwcilobby,
+    ],
+    link_args: [
+        link_args,
+    ],
+    link_depends: main_lcf,
+    native: false
+)
+endif
+
 ############################################################
 ###                    ARM7 BINARIES                     ###
 ############################################################
@@ -555,6 +640,9 @@ pokeplatinum_nds = custom_target('pokeplatinum.us.nds',
     ],
     build_by_default: true
 )
+elif (build_target == 'android')
+# Nothing to package: the APK contains only code, and game files are extracted from the
+# player's own ROM on first launch. See android/README.md.
 elif (build_target == 'nx')
 copy_files_script = files('tools/scripts/copy_pc_files.sh')
 

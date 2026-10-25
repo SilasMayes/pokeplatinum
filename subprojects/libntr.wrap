@@ -1,6 +1,7 @@
 [wrap-git]
-url = https://github.com/cybervisi0n/libntr.git
-revision = main
+# Thor/Android fork: GLES renderer, android target, second-screen output
+url = https://github.com/SilasMayes/libntr.git
+revision = thor-android
 depth = 1
 directory = libntr
 

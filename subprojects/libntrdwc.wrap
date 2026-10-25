@@ -1,8 +1,10 @@
 [wrap-git]
 url = https://github.com/cybervisi0n/libntrdwc.git
-revision = main
+# Pinned so the Android patch below keeps applying; bump together with the patch
+revision = c6622266a9388d854443c659daf316fd9d1f540d
 depth = 1
 directory = libntrdwc
+diff_files = libntrdwc_android.patch
 
 [provide]
 dependency_names = NitroDWC

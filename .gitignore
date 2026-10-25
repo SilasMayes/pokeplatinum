@@ -3,6 +3,7 @@
 /build_linux/
 /build_win64/
 /build_nx/
+/build_android/
 
 # MSys2
 /msys2/

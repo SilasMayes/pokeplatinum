@@ -1,0 +1,49 @@
+name: build_android
+
+on:
+  push:
+    branches: [ thor-android ]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+jobs:
+  build_android:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install Software
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            git python3 gcc g++ cmake ninja-build nasm flex bison libpng-dev pkg-config
+
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Fetch Meson
+        run: make meson
+
+      - name: Build APK
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          export VERSION_NAME="$(git rev-parse --short HEAD)"
+          ./tools/android/build_apk.sh
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokeplatinum-android
+          path: android/app/build/outputs/apk/release/app-release.apk

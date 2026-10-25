@@ -1,8 +1,10 @@
 [wrap-git]
 url = https://github.com/cybervisi0n/libvct.git
-revision = main
+# Pinned so the Android patch below keeps applying; bump together with the patch
+revision = a34ad47fc0d7d964483c287759b704b3b1f3b967
 depth = 1
 directory = libvct
+diff_files = libvct_android.patch
 
 [provide]
 dependency_names = libvct
