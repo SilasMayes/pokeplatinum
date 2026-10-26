@@ -6,7 +6,9 @@
 
 #include "port/sim_config_prj.h"
 
-#define SIM_CONFIG_PRJ_FILE_PATH "./sim_config_prj.ini"
+#include <simulator/sim_carts.h>
+// Shared by every game (libntr sim_carts.h)
+#define SIM_CONFIG_PRJ_FILE_PATH SIM_SettingsPath("sim_config_prj.ini")
 
 static int IniHandler(void* user, const char* section, const char* name,
                    const char* value);
@@ -163,7 +165,10 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fclose(configFile);
 }
 
+static BOOL sConfigLoaded = FALSE;
+
 void SIM_Config_prj_init() {
+  sConfigLoaded = TRUE;
   //Load default config
   SIM_Config_prj_LoadDefaults(&s_SIM_config_prj);
   
@@ -176,5 +181,9 @@ void SIM_Config_prj_init() {
 
 SIM_Config_prj_type * SIM_Config_prj_GetConfig()
 {
+  // libntr can ask before the game starts (the game picker, the lower screen's layout)
+  if (!sConfigLoaded) {
+    SIM_Config_prj_init();
+  }
   return &s_SIM_config_prj;
 }

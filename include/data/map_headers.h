@@ -40,7 +40,13 @@ enum MapType {
     MAP_TYPE_UNDERGROUND,
 };
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+// Writable: ROM hacks change map headers (port/rom_patches.h)
+static MapHeader sMapHeaders[] = {
+#else
 static const MapHeader sMapHeaders[] = {
+#endif
     [MAP_HEADER_EVERYWHERE] = {
         .areaDataArchiveID = area_data_000,
         .preloadedMapObjectsArchiveID = 0x0,
@@ -13088,3 +13094,7 @@ static const MapHeader sMapHeaders[] = {
         .isFlyAllowed = FALSE,
     },
 };
+
+#ifdef SDK_PORT
+ROM_PATCHES_TABLE(sMapHeaders, ROM_FILE_ARM9, 0xE601C, NULL)
+#endif

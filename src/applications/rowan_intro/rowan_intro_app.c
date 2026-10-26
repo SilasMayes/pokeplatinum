@@ -45,6 +45,10 @@
 
 #include "res/text/bank/rowan_intro.h"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+#endif
+
 FS_EXTERN_OVERLAY(game_start);
 
 enum RowanIntroState {
@@ -1564,7 +1568,11 @@ static void RowanIntro_LoadBunearySprite(RowanIntro *manager)
 
     BuildPokemonSpriteTemplate(
         &spriteTemplate,
+#ifdef SDK_PORT
+        RomPatches_Info()->introSpecies,
+#else
         SPECIES_BUNEARY,
+#endif
         GENDER_MALE,
         FACE_FRONT,
         FALSE,
@@ -2013,7 +2021,11 @@ static BOOL RowanIntro_AnimateBuneary(RowanIntro *manager, enum BunearyAnimState
         }
     } break;
     case BA_STATE_END:
+#ifdef SDK_PORT
+        Sound_PlayPokemonCry(RomPatches_Info()->introSpecies, 0);
+#else
         Sound_PlayPokemonCry(SPECIES_BUNEARY, 0);
+#endif
         isFinished = TRUE;
         break;
     }

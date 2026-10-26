@@ -75,6 +75,14 @@ static void CharCodesToAscii(const charcode_t *chars, int maxLen, char *out, int
 {
     int pos = 0;
     for (int i = 0; i < maxLen && chars[i] != CHAR_EOS && pos < outSize - 1; i++) {
+        // Nidoran's symbols (the ASCII conversion drops them)
+        if (chars[i] == CHAR_MALE || chars[i] == CHAR_WIDE_MALE || chars[i] == CHAR_FEMALE || chars[i] == CHAR_WIDE_FEMALE) {
+            if (pos < outSize - 3) {
+                out[pos++] = ' ';
+                out[pos++] = (chars[i] == CHAR_MALE || chars[i] == CHAR_WIDE_MALE) ? 'M' : 'F';
+            }
+            continue;
+        }
         char c = 0;
         CharCode_ToAsciiString((charcode_t *)&chars[i], &c, 1);
         if (c != 0) {

@@ -32,6 +32,25 @@ All files live in `Android/data/org.pokeplatinum.port/files/`: the extracted gam
 files, the saves, `sim_config.ini` (libntr settings) and `sim_config_prj.ini` (game
 settings).
 
+## More than one game (Renegade Platinum)
+
+The app can hold several games side by side, each with its own extracted ROM and its
+own saves (the settings are shared). Add one with *Application -> Games -> Add a game*
+in the settings GUI, and pick the `.nds` file. When more than one game is installed, a
+picker comes up when the app starts (turn it off in the same window); *Play* in that
+window switches games (the app saves and restarts).
+
+**Renegade Platinum** (Drayano's hack, including the Classic version) works this way:
+patch your Platinum (USA) ROM with the hack's xdelta patch yourself (for example with
+an xdelta app or Delta Patcher), then add the patched `.nds` as a game. Its new data
+files (Pokemon, trainers, encounters, text, scripts...) load like the original's. The
+few things the hack changes inside the game's code are read from the patched ROM at
+startup (`src/port/rom_patches.c`): map headers, shop stock, Game Corner prizes, TM
+moves, icon palettes, shiny odds (1 in 512), every Pokemon obeying, the Fairy type and
+its type chart, the Fairy move colours and Pokedex icon, and the Pokemon in Professor
+Rowan's introduction. The game picker names it "Renegade Platinum" or "Renegade
+Platinum Classic".
+
 ## Saves
 
 * **Save slots:** four independent games. On the main menu, **L/R** switch slots (the

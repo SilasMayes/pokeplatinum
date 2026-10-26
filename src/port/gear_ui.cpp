@@ -16,6 +16,7 @@
 #include "generated/time_of_day.h"
 
 #include "port/gear_data.h"
+#include "port/rom_patches.h"
 #include "port/save_slots.h"
 #include "port/sim_config_prj.h"
 
@@ -62,6 +63,16 @@ constexpr ImU32 kTypeColors[18] = {
     IM_COL32(111, 53, 252, 255),  // Dragon
     IM_COL32(112, 87, 70, 255),   // Dark
 };
+
+// Type 9 is "???" in vanilla; ROM hacks such as Renegade Platinum make it Fairy
+constexpr ImU32 kFairyColor = IM_COL32(214, 133, 173, 255);
+
+ImU32 TypeColor(u8 type) {
+  if (type == 9 && RomPatches_Info()->extraType) {
+    return kFairyColor;
+  }
+  return type < 18 ? kTypeColors[type] : kTextDim;
+}
 
 ImFont *sRegular = nullptr;
 ImFont *sBold = nullptr;
@@ -197,7 +208,7 @@ float TypeChip(ImDrawList *draw, ImVec2 pos, u8 type, float height) {
   float fontSize = height * 0.62f;
   ImVec2 textSize = TextSize(sBold, fontSize, name);
   float width = textSize.x + height * 0.8f;
-  draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), type < 18 ? kTypeColors[type] : kTextDim, height * 0.5f);
+  draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), TypeColor(type), height * 0.5f);
   TextAt(draw, sBold, fontSize, ImVec2(pos.x + (width - textSize.x) * 0.5f, pos.y + (height - textSize.y) * 0.5f),
          IM_COL32(255, 255, 255, 255), name);
   return width;
@@ -832,7 +843,7 @@ void DrawBattleMove(const GearMove &move, const int *opponents, int opponentCoun
   }
 
   // Type stripe on the left edge
-  draw->AddRectFilled(pos, ImVec2(pos.x + S(7.0f), pos.y + size.y), move.type < 18 ? kTypeColors[move.type] : kTextDim, S(10.0f),
+  draw->AddRectFilled(pos, ImVec2(pos.x + S(7.0f), pos.y + size.y), TypeColor(move.type), S(10.0f),
                       ImDrawFlags_RoundCornersLeft);
   const float x = pos.x + S(7.0f) + pad;
   TextAt(draw, sBold, S(15.0f), ImVec2(x, pos.y + S(5.0f)), kText, Gear_MoveName(move.id));
@@ -916,7 +927,7 @@ void DrawBattlerDetails(const GearBattler &b, bool showMoves) {
         continue;
       }
       ImGui::TableNextColumn();
-      ImGui::TextColored(ImColor(move.type < 18 ? kTypeColors[move.type] : kTextDim), "%s", Gear_MoveName(move.id));
+      ImGui::TextColored(ImColor(TypeColor(move.type)), "%s", Gear_MoveName(move.id));
       ImGui::SameLine();
       ImGui::TextColored(ImColor(kTextDim), "%d/%d", move.pp, move.maxPp);
     }

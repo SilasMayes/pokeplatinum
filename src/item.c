@@ -16,6 +16,13 @@
 #include "res/items/item_mail_list.h"
 #include "res/items/item_tm_move_map.h"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+// ROM hacks change the TM moves (port/rom_patches.h)
+ROM_PATCHES_TABLE_COPY(u16, sTMHMMoves, ROM_FILE_ARM9, 0xF0BFC, NULL)
+#define sTMHMMoves sTMHMMoves_rom
+#endif
+
 static s32 ItemPartyParam_Get(ItemPartyParam *partyParam, enum ItemDataParam attributeID);
 
 void Item_MoveInPocket(void *pocket, u16 srcSlot, u16 dstSlot)

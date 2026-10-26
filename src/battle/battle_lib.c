@@ -47,6 +47,10 @@
 #include "res/battle/scripts/sub_seq.naix"
 #include "res/text/bank/battle_strings.h"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+#endif
+
 #define TRMSG_ACTIVE_BATTLER_HALF_HP_FLAG 2
 #define TRMSG_LAST_BATTLER_FLAG           3
 #define TRMSG_LAST_BATTLER_HALF_HP_FLAG   4
@@ -2396,6 +2400,11 @@ int Battler_SlotForMove(BattleMon *mon, u16 move)
  * The matchup multiplier is assumed to be divided by 10 at a later stage for
  * any computations which make use of it (hence the values 5 and 20).
  */
+#ifdef SDK_PORT
+// The ROM's own chart replaces it when it has one (Renegade Platinum's has Fairy as type
+// 9); see port/rom_patches.h
+#define sTypeMatchupMultipliers sVanillaTypeMatchupMultipliers
+#endif
 static const u8 sTypeMatchupMultipliers[][3] = {
     { TYPE_NORMAL, TYPE_ROCK, TYPE_MULTI_NOT_VERY_EFF },
     { TYPE_NORMAL, TYPE_STEEL, TYPE_MULTI_NOT_VERY_EFF },
@@ -2515,6 +2524,10 @@ static const u8 sTypeMatchupMultipliers[][3] = {
 
     { 0xFF, 0xFF, TYPE_MULTI_IMMUNE },
 };
+#ifdef SDK_PORT
+#undef sTypeMatchupMultipliers
+#define sTypeMatchupMultipliers (RomPatches_TypeChart(sVanillaTypeMatchupMultipliers))
+#endif
 
 #ifdef SDK_PORT
 // The chart's multiplier (in tenths) of one attacking type against one defending type,

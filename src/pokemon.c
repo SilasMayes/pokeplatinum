@@ -56,6 +56,10 @@
 #include "res/pokemon/regional_pokedex_size.h"
 #include "res/trainers/classes/trbgra.naix"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+#endif
+
 #define FATEFUL_ENCOUNTER_LOCATION 3002
 
 static const s8 sNatureFlavorAffinities[][5] = {
@@ -2762,7 +2766,14 @@ static inline BOOL Pokemon_InlineIsPersonalityShiny(u32 monOTID, u32 monPersonal
 
 u8 Pokemon_IsPersonalityShiny(u32 monOTID, u32 monPersonality)
 {
+#ifdef SDK_PORT
+    // ROM hacks change the odds here (Renegade Platinum: 128/65536); the inlined check in
+    // Pokemon_InitWith keeps the original 8 like on the DS
+    u32 shinyValue = ((monOTID & 0xFFFF0000) >> 16) ^ (monOTID & 0xFFFF) ^ ((monPersonality & 0xFFFF0000) >> 16) ^ (monPersonality & 0xFFFF);
+    return shinyValue < (u32)RomPatches_Info()->shinyThreshold;
+#else
     return Pokemon_InlineIsPersonalityShiny(monOTID, monPersonality);
+#endif
 }
 
 u32 Pokemon_FindShinyPersonality(u32 monOTID)

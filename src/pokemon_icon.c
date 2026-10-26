@@ -11,6 +11,13 @@
 #include "res/pokemon/pl_poke_icon.naix"
 #include "res/pokemon/species_icon_palettes.h"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+// ROM hacks with new icons change the palettes (port/rom_patches.h)
+ROM_PATCHES_TABLE_COPY(u8, sPokemonIconPaletteIndex, ROM_FILE_ARM9, 0xF0780, NULL)
+#define sPokemonIconPaletteIndex sPokemonIconPaletteIndex_rom
+#endif
+
 static inline u32 IconTilesIndex(u32 icon)
 {
     return icon + icon_00000_NCGR;

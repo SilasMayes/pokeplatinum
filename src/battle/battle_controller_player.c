@@ -46,6 +46,10 @@
 #include "res/battle/scripts/sub_seq.naix"
 
 #ifdef SDK_PORT
+#include "port/rom_patches.h"
+#endif
+
+#ifdef SDK_PORT
 #include "port/sim_config_prj.h"
 #endif
 
@@ -2168,7 +2172,12 @@ static int BattleControllerPlayer_CheckObedience(BattleSystem *battleSys, Battle
     if (battleCtx->moveCur == MOVE_BIDE && (battleCtx->battleStatusMask & SYSCTL_LAST_OF_MULTI_TURN)) {
         return OBEY_CHECK_SUCCESS;
     }
+#ifdef SDK_PORT
+    // Renegade Platinum: every Pokemon obeys (the ROM's badge count for it is 0)
+    if (TrainerInfo_BadgeCount(trInfo) >= RomPatches_Info()->obeyAllBadges) {
+#else
     if (TrainerInfo_BadgeCount(trInfo) >= 8) {
+#endif
         return OBEY_CHECK_SUCCESS;
     }
 

@@ -38,6 +38,10 @@
 #include "res/graphics/pokedex/zukan.naix"
 #include "res/text/bank/pokedex.h"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+#endif
+
 #define POKEDEX_TYPE_ICON_BACKGROUND_BOX_CELL 0x11
 #define POKEDEX_TYPE_ICON_RESOURCE_OFFSET     4000
 #define STRING_BUFFER_SIZE                    64
@@ -678,8 +682,15 @@ int PokedexGraphics_GetAnimIDfromType(int monType)
         animID = 11;
         break;
     case TYPE_GHOST:
-    case TYPE_MYSTERY:
         animID = 7;
+        break;
+    case TYPE_MYSTERY:
+#ifdef SDK_PORT
+        // Renegade Platinum's Fairy type has its own icon
+        animID = RomPatches_Info()->extraTypePokedexIcon;
+#else
+        animID = 7;
+#endif
         break;
     case TYPE_STEEL:
         animID = 9;

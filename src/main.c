@@ -35,6 +35,7 @@
 
 #ifdef SDK_PORT
 #include "port/frame_rate.h"
+#include "port/rom_patches.h"
 #include "port/sim_config_prj.h"
 #include "port/save_slots.h"
 #if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
@@ -95,6 +96,11 @@ void NitroMain(void)
     Font_InitManager(FONT_SYSTEM, HEAP_ID_APPLICATION);
     Font_InitManager(FONT_MESSAGE, HEAP_ID_APPLICATION);
     Font_InitManager(FONT_UNOWN, HEAP_ID_APPLICATION);
+
+#ifdef SDK_PORT
+    // Tables and instructions ROM hacks change, from the ROM's code files
+    RomPatches_Apply();
+#endif
 
     sApplication.args.unk_00 = -1;
     sApplication.args.saveData = SaveData_Init();

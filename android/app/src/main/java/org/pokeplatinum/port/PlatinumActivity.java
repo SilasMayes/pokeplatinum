@@ -116,6 +116,20 @@ public class PlatinumActivity extends SDLActivity {
         }
     }
 
+    /**
+     * Called from native code (sim_carts.cpp) after switching to another game: start the
+     * app again in a fresh process, which then enters that game's directory.
+     */
+    @SuppressWarnings("unused")
+    public void restartApp() {
+        Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+        }
+        Runtime.getRuntime().exit(0);
+    }
+
     /** Called from native code (SDL thread) when the ROM files still need extracting. */
     @SuppressWarnings("unused")
     public void requestRomImport() {

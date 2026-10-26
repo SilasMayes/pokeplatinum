@@ -3,6 +3,10 @@
 #include "constants/graphics.h"
 #include "generated/pokemon_types.h"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+#endif
+
 ALIGN_4 static const u16 sMovePaletteNormal[] = {
     RGB(13, 14, 29),
     RGB(31, 31, 31),
@@ -174,7 +178,12 @@ ALIGN_4 static const u16 sMovePaletteSteel[] = {
     RGB(0, 0, 0),
 };
 
+#ifdef SDK_PORT
+// Writable: Renegade Platinum gives type 9 (Fairy) its own colours (port/rom_patches.h)
+ALIGN_4 static u16 sMovePaletteMystery[] = {
+#else
 ALIGN_4 static const u16 sMovePaletteMystery[] = {
+#endif
     RGB(13, 14, 29),
     RGB(31, 31, 31),
     RGB(26, 19, 22),
@@ -192,6 +201,9 @@ ALIGN_4 static const u16 sMovePaletteMystery[] = {
     RGB(30, 29, 21),
     RGB(0, 0, 0),
 };
+#ifdef SDK_PORT
+ROM_PATCHES_TABLE(sMovePaletteMystery, 11, 0x28C, NULL)
+#endif
 
 ALIGN_4 static const u16 sMovePaletteFire[] = {
     RGB(13, 14, 29),

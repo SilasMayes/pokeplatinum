@@ -6,12 +6,20 @@
 #include "generated/mart_specialties_id.h"
 #include "generated/seals.h"
 
+#ifdef SDK_PORT
+#include "port/rom_patches.h"
+// Writable: ROM hacks change shop stock (port/rom_patches.h)
+#define MART_CONST
+#else
+#define MART_CONST const
+#endif
+
 typedef struct {
     u16 itemID;
     u16 requiredBadges;
 } PokeMartCommonItem;
 
-const PokeMartCommonItem PokeMartCommonItems[] = {
+MART_CONST PokeMartCommonItem PokeMartCommonItems[] = {
     { ITEM_POKE_BALL, 0x1 },
     { ITEM_GREAT_BALL, 0x3 },
     { ITEM_ULTRA_BALL, 0x4 },
@@ -33,27 +41,27 @@ const PokeMartCommonItem PokeMartCommonItems[] = {
     { ITEM_MAX_REPEL, 0x4 }
 };
 
-const u16 JubilifeMartSpecialties[] = {
+MART_CONST u16 JubilifeMartSpecialties[] = {
     ITEM_AIR_MAIL,
     ITEM_HEAL_BALL,
     SHOP_ITEM_END
 };
 
-const u16 OreburghMartSpecialties[] = {
+MART_CONST u16 OreburghMartSpecialties[] = {
     ITEM_TUNNEL_MAIL,
     ITEM_HEAL_BALL,
     ITEM_NET_BALL,
     SHOP_ITEM_END
 };
 
-const u16 FloaromaMartSpecialties[] = {
+MART_CONST u16 FloaromaMartSpecialties[] = {
     ITEM_BLOOM_MAIL,
     ITEM_HEAL_BALL,
     ITEM_NET_BALL,
     SHOP_ITEM_END
 };
 
-const u16 EternaMartSpecialties[] = {
+MART_CONST u16 EternaMartSpecialties[] = {
     ITEM_AIR_MAIL,
     ITEM_HEAL_BALL,
     ITEM_NET_BALL,
@@ -61,7 +69,7 @@ const u16 EternaMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 EternaHerbShopStock[] = {
+MART_CONST u16 EternaHerbShopStock[] = {
     ITEM_HEAL_POWDER,
     ITEM_ENERGYPOWDER,
     ITEM_ENERGY_ROOT,
@@ -69,7 +77,7 @@ const u16 EternaHerbShopStock[] = {
     SHOP_ITEM_END
 };
 
-const u16 HearthomeMartSpecialties[] = {
+MART_CONST u16 HearthomeMartSpecialties[] = {
     ITEM_HEART_MAIL,
     ITEM_HEAL_BALL,
     ITEM_NET_BALL,
@@ -77,7 +85,7 @@ const u16 HearthomeMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 SolaceonMartSpecialties[] = {
+MART_CONST u16 SolaceonMartSpecialties[] = {
     ITEM_AIR_MAIL,
     ITEM_NET_BALL,
     ITEM_NEST_BALL,
@@ -85,7 +93,7 @@ const u16 SolaceonMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 PastoriaMartSpecialties[] = {
+MART_CONST u16 PastoriaMartSpecialties[] = {
     ITEM_AIR_MAIL,
     ITEM_NEST_BALL,
     ITEM_DUSK_BALL,
@@ -93,7 +101,7 @@ const u16 PastoriaMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_1F_RIGHT[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_1F_RIGHT[] = {
     ITEM_POTION,
     ITEM_SUPER_POTION,
     ITEM_HYPER_POTION,
@@ -108,7 +116,7 @@ const u16 VeilstoneDeptStoreStock_1F_RIGHT[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_1F_LEFT[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_1F_LEFT[] = {
     ITEM_POKE_BALL,
     ITEM_GREAT_BALL,
     ITEM_ULTRA_BALL,
@@ -124,7 +132,7 @@ const u16 VeilstoneDeptStoreStock_1F_LEFT[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_2F_UP[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_2F_UP[] = {
     ITEM_X_SPEED,
     ITEM_X_ATTACK,
     ITEM_X_DEFENSE,
@@ -136,7 +144,7 @@ const u16 VeilstoneDeptStoreStock_2F_UP[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_2F_MID[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_2F_MID[] = {
     ITEM_PROTEIN,
     ITEM_IRON,
     ITEM_CALCIUM,
@@ -146,7 +154,7 @@ const u16 VeilstoneDeptStoreStock_2F_MID[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_3F_UP[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_3F_UP[] = {
     ITEM_TM83,
     ITEM_TM17,
     ITEM_TM54,
@@ -157,7 +165,7 @@ const u16 VeilstoneDeptStoreStock_3F_UP[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_3F_DOWN[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_3F_DOWN[] = {
     ITEM_TM38,
     ITEM_TM25,
     ITEM_TM14,
@@ -167,7 +175,7 @@ const u16 VeilstoneDeptStoreStock_3F_DOWN[] = {
     SHOP_ITEM_END
 };
 
-const u16 CelesticMartSpecialties[] = {
+MART_CONST u16 CelesticMartSpecialties[] = {
     ITEM_AIR_MAIL,
     ITEM_DUSK_BALL,
     ITEM_QUICK_BALL,
@@ -175,7 +183,7 @@ const u16 CelesticMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 SnowpointMartSpecialties[] = {
+MART_CONST u16 SnowpointMartSpecialties[] = {
     ITEM_SNOW_MAIL,
     ITEM_DUSK_BALL,
     ITEM_QUICK_BALL,
@@ -183,7 +191,7 @@ const u16 SnowpointMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 CanalaveMartSpecialties[] = {
+MART_CONST u16 CanalaveMartSpecialties[] = {
     ITEM_AIR_MAIL,
     ITEM_QUICK_BALL,
     ITEM_TIMER_BALL,
@@ -191,13 +199,13 @@ const u16 CanalaveMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 SunyshoreMartSpecialties[] = {
+MART_CONST u16 SunyshoreMartSpecialties[] = {
     ITEM_STEEL_MAIL,
     ITEM_LUXURY_BALL,
     SHOP_ITEM_END
 };
 
-const u16 PokemonLeagueMartSpecialties[] = {
+MART_CONST u16 PokemonLeagueMartSpecialties[] = {
     ITEM_HEAL_BALL,
     ITEM_NET_BALL,
     ITEM_NEST_BALL,
@@ -209,7 +217,7 @@ const u16 PokemonLeagueMartSpecialties[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_B1F_DOWN_LEFT[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_B1F_DOWN_LEFT[] = {
     ITEM_FIGY_BERRY,
     ITEM_WIKI_BERRY,
     ITEM_MAGO_BERRY,
@@ -241,7 +249,7 @@ const u16 *PokeMartSpecialties[] = {
     [MART_SPECIALTIES_ID_VEILSTONE_B1F] = VeilstoneDeptStoreStock_B1F_DOWN_LEFT
 };
 
-const u16 VeilstoneDeptStoreStock_4F_UP[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_4F_UP[] = {
     UG_GOOD_YELLOW_CUSHION,
     UG_GOOD_CUPBOARD,
     UG_GOOD_TV,
@@ -250,7 +258,7 @@ const u16 VeilstoneDeptStoreStock_4F_UP[] = {
     SHOP_ITEM_END
 };
 
-const u16 VeilstoneDeptStoreStock_4F_DOWN[] = {
+MART_CONST u16 VeilstoneDeptStoreStock_4F_DOWN[] = {
     UG_GOOD_MUNCHLAX_DOLL,
     UG_GOOD_BONSLY_DOLL,
     UG_GOOD_MIME_JR_DOLL,
@@ -265,7 +273,7 @@ const u16 *VeilstoneDeptStoreDecorationStocks[] = {
     [MART_DECOR_ID_VEILSTONE_4F_DOWN] = VeilstoneDeptStoreStock_4F_DOWN
 };
 
-const u16 SunyshoreMarketStockMonday[] = {
+MART_CONST u16 SunyshoreMarketStockMonday[] = {
     HEART_SEAL_A,
     STAR_SEAL_B,
     FIRE_SEAL_A,
@@ -276,7 +284,7 @@ const u16 SunyshoreMarketStockMonday[] = {
     SHOP_ITEM_END
 };
 
-const u16 SunyshoreMarketStockTuesday[] = {
+MART_CONST u16 SunyshoreMarketStockTuesday[] = {
     HEART_SEAL_B,
     STAR_SEAL_C,
     FIRE_SEAL_B,
@@ -287,7 +295,7 @@ const u16 SunyshoreMarketStockTuesday[] = {
     SHOP_ITEM_END
 };
 
-const u16 SunyshoreMarketStockWednesday[] = {
+MART_CONST u16 SunyshoreMarketStockWednesday[] = {
     HEART_SEAL_C,
     STAR_SEAL_D,
     FIRE_SEAL_C,
@@ -298,7 +306,7 @@ const u16 SunyshoreMarketStockWednesday[] = {
     SHOP_ITEM_END
 };
 
-const u16 SunyshoreMarketStockThursday[] = {
+MART_CONST u16 SunyshoreMarketStockThursday[] = {
     HEART_SEAL_D,
     FOAMY_SEAL_A,
     FIRE_SEAL_D,
@@ -309,7 +317,7 @@ const u16 SunyshoreMarketStockThursday[] = {
     SHOP_ITEM_END
 };
 
-const u16 SunyshoreMarketStockFriday[] = {
+MART_CONST u16 SunyshoreMarketStockFriday[] = {
     FOAMY_SEAL_B,
     PARTY_SEAL_A,
     FLORA_SEAL_D,
@@ -320,7 +328,7 @@ const u16 SunyshoreMarketStockFriday[] = {
     SHOP_ITEM_END
 };
 
-const u16 SunyshoreMarketStockSaturday[] = {
+MART_CONST u16 SunyshoreMarketStockSaturday[] = {
     FOAMY_SEAL_C,
     PARTY_SEAL_B,
     FLORA_SEAL_E,
@@ -331,7 +339,7 @@ const u16 SunyshoreMarketStockSaturday[] = {
     SHOP_ITEM_END
 };
 
-const u16 SunyshoreMarketStockSunday[] = {
+MART_CONST u16 SunyshoreMarketStockSunday[] = {
     STAR_SEAL_A,
     SONG_SEAL_G,
     FOAMY_SEAL_D,
@@ -351,3 +359,38 @@ const u16 *SunyshoreMarketDailyStocks[] = {
     [MART_SEAL_ID_SUNYSHORE_SATURDAY] = SunyshoreMarketStockSaturday,
     [MART_SEAL_ID_SUNYSHORE_SUNDAY] = SunyshoreMarketStockSunday
 };
+
+#ifdef SDK_PORT
+// Offsets in the US Rev 1 arm9.bin. Each list is small, so they are only trusted
+// together with the game corner prizes next to them ("shops")
+ROM_PATCHES_TABLE(PokeMartCommonItems, ROM_FILE_ARM9, 0xEBAFC, "shops")
+ROM_PATCHES_TABLE(JubilifeMartSpecialties, ROM_FILE_ARM9, 0xEB978, "shops")
+ROM_PATCHES_TABLE(OreburghMartSpecialties, ROM_FILE_ARM9, 0xEB98C, "shops")
+ROM_PATCHES_TABLE(FloaromaMartSpecialties, ROM_FILE_ARM9, 0xEB984, "shops")
+ROM_PATCHES_TABLE(EternaMartSpecialties, ROM_FILE_ARM9, 0xEB9D0, "shops")
+ROM_PATCHES_TABLE(EternaHerbShopStock, ROM_FILE_ARM9, 0xEB994, "shops")
+ROM_PATCHES_TABLE(HearthomeMartSpecialties, ROM_FILE_ARM9, 0xEB9DA, "shops")
+ROM_PATCHES_TABLE(SolaceonMartSpecialties, ROM_FILE_ARM9, 0xEB9C6, "shops")
+ROM_PATCHES_TABLE(PastoriaMartSpecialties, ROM_FILE_ARM9, 0xEB9A8, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_1F_RIGHT, ROM_FILE_ARM9, 0xEBACA, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_1F_LEFT, ROM_FILE_ARM9, 0xEBAE2, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_2F_UP, ROM_FILE_ARM9, 0xEBAB8, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_2F_MID, ROM_FILE_ARM9, 0xEB9FC, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_3F_UP, ROM_FILE_ARM9, 0xEBA66, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_3F_DOWN, ROM_FILE_ARM9, 0xEBA18, "shops")
+ROM_PATCHES_TABLE(CelesticMartSpecialties, ROM_FILE_ARM9, 0xEB9B2, "shops")
+ROM_PATCHES_TABLE(SnowpointMartSpecialties, ROM_FILE_ARM9, 0xEB9BC, "shops")
+ROM_PATCHES_TABLE(CanalaveMartSpecialties, ROM_FILE_ARM9, 0xEB99E, "shops")
+ROM_PATCHES_TABLE(SunyshoreMartSpecialties, ROM_FILE_ARM9, 0xEB97E, "shops")
+ROM_PATCHES_TABLE(PokemonLeagueMartSpecialties, ROM_FILE_ARM9, 0xEBAA6, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_B1F_DOWN_LEFT, ROM_FILE_ARM9, 0xEB9E4, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_4F_UP, ROM_FILE_ARM9, 0xEB9F0, "shops")
+ROM_PATCHES_TABLE(VeilstoneDeptStoreStock_4F_DOWN, ROM_FILE_ARM9, 0xEBA0A, "shops")
+ROM_PATCHES_TABLE(SunyshoreMarketStockMonday, ROM_FILE_ARM9, 0xEBA76, "shops")
+ROM_PATCHES_TABLE(SunyshoreMarketStockTuesday, ROM_FILE_ARM9, 0xEBA26, "shops")
+ROM_PATCHES_TABLE(SunyshoreMarketStockWednesday, ROM_FILE_ARM9, 0xEBA36, "shops")
+ROM_PATCHES_TABLE(SunyshoreMarketStockThursday, ROM_FILE_ARM9, 0xEBA56, "shops")
+ROM_PATCHES_TABLE(SunyshoreMarketStockFriday, ROM_FILE_ARM9, 0xEBA86, "shops")
+ROM_PATCHES_TABLE(SunyshoreMarketStockSaturday, ROM_FILE_ARM9, 0xEBA46, "shops")
+ROM_PATCHES_TABLE(SunyshoreMarketStockSunday, ROM_FILE_ARM9, 0xEBA96, "shops")
+#endif
