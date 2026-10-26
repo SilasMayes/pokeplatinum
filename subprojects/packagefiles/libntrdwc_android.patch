@@ -1,3 +1,33 @@
+diff --git a/include/decomp/decomp_defs.h b/include/decomp/decomp_defs.h
+index df71a28..b569d05 100644
+--- a/include/decomp/decomp_defs.h
++++ b/include/decomp/decomp_defs.h
+@@ -45,6 +45,10 @@ typedef unsigned long long unsigned_long_long;
+ 
+ typedef int BOOL;
+ 
++#ifdef SDK_BUILD_ANDROID
++/* bionic already declares wctype_t (as long); keep this library's 16-bit one separate */
++#define wctype_t DWCi_wctype_t
++#endif
+ typedef ushort wctype_t;
+ 
+ typedef struct tagACHOLD tagACHOLD, *PtagACHOLD;
+diff --git a/libraries/ac/src/nintendospot.c b/libraries/ac/src/nintendospot.c
+index cfeb96a..c6e0322 100644
+--- a/libraries/ac/src/nintendospot.c
++++ b/libraries/ac/src/nintendospot.c
+@@ -6,6 +6,10 @@
+ 
+ #include "dwc_memfunc.h"
+ 
++#ifdef SDK_BUILD_ANDROID
++/* bionic already declares wctype_t (as long); keep this library's 16-bit one separate */
++#define wctype_t DWCi_wctype_t
++#endif
+ typedef ushort wctype_t;
+ 
+ typedef struct DWCWDSWork DWCWDSWork, *PDWCWDSWork;
 diff --git a/meson.options b/meson.options
 index 5007e48..47a48be 100644
 --- a/meson.options

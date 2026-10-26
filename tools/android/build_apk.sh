@@ -92,7 +92,8 @@ if [ ! -f "$BUILD/meson/build.ninja" ]; then
         --cross-file="$BUILD/android.ini" \
         -- "$BUILD/meson"
 fi
-$MESON compile -C "$BUILD/meson" main
+# -k 0: report every failing file in one go instead of stopping at the first
+$MESON compile -C "$BUILD/meson" --ninja-args=-k,0 main
 
 # 5. Assemble the Gradle project
 APP=$ROOT/android/app/src/main

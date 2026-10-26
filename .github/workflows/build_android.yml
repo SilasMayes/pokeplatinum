@@ -60,13 +60,17 @@ jobs:
           python3 - <<'PY'
           import re
           lines = open('build.log', errors='replace').read().splitlines()
-          errors = [l for l in lines if re.search(r'error:|error [A-Z]|FAILED:|fatal|ERROR|What went wrong', l)]
+          failed = [l for l in lines if l.startswith('FAILED:')]
+          errors = list(dict.fromkeys(l.strip() for l in lines
+                                      if re.search(r'error:|undefined (symbol|reference)|fatal|ERROR|What went wrong', l)))
+          if failed:
+              errors.insert(0, f'{len(failed)} failed build steps, first: {failed[0]}')
           def emit(title, chunk):
               msg = '\n'.join(chunk)[-30000:]
               msg = msg.replace('%', '%25').replace('\r', '').replace('\n', '%0A')
               print(f'::error title={title}::{msg}')
           if errors:
-              emit('First errors', errors[:80])
+              emit('Errors', errors[:150])
           emit('Log tail', lines[-200:])
           PY
 
