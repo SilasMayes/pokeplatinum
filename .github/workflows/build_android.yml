@@ -15,7 +15,8 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends \
-            git python3 gcc g++ cmake ninja-build nasm flex bison libpng-dev pkg-config
+            git python3 gcc g++ cmake ninja-build nasm flex bison libpng-dev pkg-config \
+            gcc-arm-none-eabi
 
       - name: Checkout Repo
         uses: actions/checkout@v4

@@ -3,7 +3,7 @@
 #
 # Requirements: Android NDK r26+ (ANDROID_NDK_HOME), Android SDK (ANDROID_HOME) and
 # Gradle 8.9+ on PATH, plus the usual PC-port host tools (python3, gcc, ninja, nasm,
-# flex, bison, cmake, libpng). Run `make meson` once first.
+# flex, bison, cmake, libpng, gcc-arm-none-eabi for asset scripts). Run `make meson` once first.
 #
 # The APK contains code only. Game files are extracted from the player's own ROM on
 # first launch, exactly like the PC releases.
