@@ -178,6 +178,7 @@ link_args = [
     '-static-libstdc++',
     '-Wl,--no-undefined',
     '-Wl,-z,max-page-size=16384',
+    '-Wl,-soname,libmain.so',
 ]
 else
 link_args = [

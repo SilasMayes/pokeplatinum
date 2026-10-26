@@ -7,6 +7,13 @@ on:
       - '**.md'
   workflow_dispatch:
 
+permissions:
+  contents: write # the "latest build" pre-release
+
+concurrency:
+  group: build_android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_android:
     runs-on: ubuntu-24.04
@@ -39,7 +46,8 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
         run: |
-          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          # The runner's default NDK (r27, clang 18): the toolchain the code was tested with
+          echo "NDK: $ANDROID_NDK_HOME"
           export VERSION_NAME="$(git rev-parse --short HEAD)"
           ./tools/android/build_apk.sh
 
@@ -48,3 +56,17 @@ jobs:
         with:
           name: pokeplatinum-android
           path: android/app/build/outputs/apk/release/app-release.apk
+
+      # A fixed download link for the newest build, so it can be grabbed straight from
+      # the device's browser without signing in to GitHub or unzipping an artifact.
+      - name: Publish latest build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk pokeplatinum-thor.apk
+          gh release delete thor-android-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create thor-android-latest pokeplatinum-thor.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Thor Android build (latest)" \
+            --notes "Built from ${GITHUB_SHA::8} (run ${{ github.run_number }}). Code only: on first launch the game asks for your own Pokémon Platinum (US) ROM and extracts its files."
