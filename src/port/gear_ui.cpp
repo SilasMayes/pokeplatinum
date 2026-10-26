@@ -156,6 +156,22 @@ void Refresh() {
   if (sSelectedMon >= sPartyCount) {
     sSelectedMon = -1;
   }
+
+  // In battle the party only catches up afterwards: show the fighting Pokemon's HP live
+  if (sBattle.active) {
+    for (int b = 0; b < GEAR_BATTLERS_MAX; b++) {
+      const GearBattler &battler = sBattle.battlers[b];
+      if (!battler.present || battler.enemy || !battler.playerControlled) {
+        continue;
+      }
+      for (int i = 0; i < sPartyCount; i++) {
+        if (sParty[i].personality == battler.personality && sParty[i].species == battler.species) {
+          sParty[i].hp = battler.hp;
+          sParty[i].status = battler.status;
+        }
+      }
+    }
+  }
   Gear_GetTrainer(&sTrainer);
 
   // The encounter table only changes with the map or the time of day
