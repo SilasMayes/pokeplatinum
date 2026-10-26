@@ -26,16 +26,16 @@ jobs:
             gcc-arm-none-eabi
 
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '8.10.2'
 
@@ -49,10 +49,29 @@ jobs:
           # The runner's default NDK (r27, clang 18): the toolchain the code was tested with
           echo "NDK: $ANDROID_NDK_HOME"
           export VERSION_NAME="$(git rev-parse --short HEAD)"
-          ./tools/android/build_apk.sh
+          set -o pipefail
+          ./tools/android/build_apk.sh 2>&1 | tee build.log
+
+      # Surface the failure as annotations (readable from the run page and the checks API)
+      - name: Report build errors
+        if: failure()
+        run: |
+          [ -f build.log ] || exit 0
+          python3 - <<'PY'
+          import re
+          lines = open('build.log', errors='replace').read().splitlines()
+          errors = [l for l in lines if re.search(r'error:|error [A-Z]|FAILED:|fatal|ERROR|What went wrong', l)]
+          def emit(title, chunk):
+              msg = '\n'.join(chunk)[-30000:]
+              msg = msg.replace('%', '%25').replace('\r', '').replace('\n', '%0A')
+              print(f'::error title={title}::{msg}')
+          if errors:
+              emit('First errors', errors[:80])
+          emit('Log tail', lines[-200:])
+          PY
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pokeplatinum-android
           path: android/app/build/outputs/apk/release/app-release.apk
