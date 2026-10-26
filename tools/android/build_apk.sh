@@ -70,8 +70,10 @@ strip = toolchain / 'llvm-strip'
 [built-in options]
 # The decompiled game code type-puns and relies on wrapping signed arithmetic (as the
 # DS compiler allowed), so optimize without strict aliasing or signed-overflow UB
-c_args = ['-I' + prefix / 'include', '-fno-strict-aliasing', '-fwrapv']
-cpp_args = ['-I' + prefix / 'include', '-fno-strict-aliasing', '-fwrapv']
+# libntr also writes across neighbouring hardware-register variables in places (like the
+# DS register file), which FORTIFY would abort on.
+c_args = ['-I' + prefix / 'include', '-fno-strict-aliasing', '-fwrapv', '-U_FORTIFY_SOURCE']
+cpp_args = ['-I' + prefix / 'include', '-fno-strict-aliasing', '-fwrapv', '-U_FORTIFY_SOURCE']
 c_link_args = ['-L' + prefix / 'lib']
 cpp_link_args = ['-L' + prefix / 'lib']
 
