@@ -19,9 +19,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Install Software
+        # apt mirrors occasionally hang; fail fast instead of waiting hours
+        timeout-minutes: 15
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get update -y -o Acquire::Retries=3 -o Acquire::http::Timeout=60
+          sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=60 \
             git python3 gcc g++ cmake ninja-build nasm flex bison libpng-dev pkg-config \
             gcc-arm-none-eabi
 
