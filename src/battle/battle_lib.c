@@ -2516,6 +2516,20 @@ static const u8 sTypeMatchupMultipliers[][3] = {
     { 0xFF, 0xFF, TYPE_MULTI_IMMUNE },
 };
 
+#ifdef SDK_PORT
+// The chart's multiplier (in tenths) of one attacking type against one defending type,
+// for the Gear companion's matchup hints
+int BattleLib_SingleTypeMultiplier(u8 attackType, u8 defenderType)
+{
+    for (int i = 0; sTypeMatchupMultipliers[i][0] != 0xFF; i++) {
+        if (sTypeMatchupMultipliers[i][0] == attackType && sTypeMatchupMultipliers[i][1] == defenderType) {
+            return sTypeMatchupMultipliers[i][2];
+        }
+    }
+    return 10;
+}
+#endif
+
 /**
  * @brief Check if the basic type multiplier applies.
  *

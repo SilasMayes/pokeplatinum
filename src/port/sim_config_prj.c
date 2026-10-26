@@ -60,6 +60,14 @@ static int IniHandler(void* user, const char* section, const char* name,
         config->autosaveOnExit = StringToBool(value);
     }
 
+    // Gear section
+    if(MATCH("Gear", "Enabled")) {
+        config->gearEnabled = StringToBool(value);
+    }
+    if(MATCH("Gear", "Discovery")) {
+        config->gearDiscovery = atoi(value);
+    }
+
     return 1;
 }
 
@@ -103,6 +111,10 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   aConfig->autosave = TRUE;
   aConfig->autosaveMinutes = 5;
   aConfig->autosaveOnExit = TRUE;
+
+  // Gear section
+  aConfig->gearEnabled = TRUE;
+  aConfig->gearDiscovery = GEAR_DISCOVERY_GUIDE;
 }
 
 // Loads the configuration file. If it does not exist, return false
@@ -137,6 +149,11 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "Autosave=%s\n", BoolToString(aConfig->autosave));
     fprintf(configFile, "AutosaveMinutes=%d\n", aConfig->autosaveMinutes);
     fprintf(configFile, "AutosaveOnExit=%s\n", BoolToString(aConfig->autosaveOnExit));
+    fprintf(configFile, "\n");
+
+    fprintf(configFile, "[Gear]\n");
+    fprintf(configFile, "Enabled=%s\n", BoolToString(aConfig->gearEnabled));
+    fprintf(configFile, "Discovery=%d\n", aConfig->gearDiscovery);
 
     fclose(configFile);
 }

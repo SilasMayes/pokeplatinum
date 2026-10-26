@@ -2568,6 +2568,14 @@ static void BattleSubscreen_FreeAllSprites(BattleSubscreen *btlSubscreen)
     BattleSubscreen_FreePokeIconSprites(btlSubscreen);
 }
 
+#ifdef SDK_PORT
+// SNELEMS of the u8 *outFlags below was the size of a pointer: 4 on the DS, but 8 on
+// 64-bit, overrunning the callers' 4-entry arrays (stack smashing in double battles)
+#define TARGET_FLAGS_COUNT MAX_BATTLERS
+#else
+#define TARGET_FLAGS_COUNT SNELEMS(outFlags)
+#endif
+
 static void GetTargetSlotFlags(BattleSubscreen *btlSubscreen, u8 *outFlags, BOOL checkPresence)
 {
     u8 battlersByType[6];
@@ -2575,7 +2583,7 @@ static void GetTargetSlotFlags(BattleSubscreen *btlSubscreen, u8 *outFlags, BOOL
     TargetSelectData *targetSelectData = &btlSubscreen->activeMenuData.targetSelectData;
     BattleSystem_SetBattlersByType(btlSubscreen->battleSys, battlersByType);
 
-    for (int i = 0; i < SNELEMS(outFlags); i++) {
+    for (int i = 0; i < TARGET_FLAGS_COUNT; i++) {
         int battlerIdx = battlersByType[2 + i];
 
         if (checkPresence == TRUE && !targetSelectData->targetMonData[battlerIdx].isPresent) {
@@ -2594,7 +2602,7 @@ static void GetBattlerTargetFlags(BattleSubscreen *btlSubscreen, int selectedTar
     case 9:
     case 10:
     case 11:
-        for (int i = 0; i < SNELEMS(outFlags); i++) {
+        for (int i = 0; i < TARGET_FLAGS_COUNT; i++) {
             if (i == selectedTarget - 1) {
                 outFlags[i] = TRUE;
             } else {

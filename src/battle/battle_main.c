@@ -90,6 +90,10 @@
 
 #include "res/text/bank/battle_strings.h"
 
+#ifdef SDK_PORT
+#include "port/gear_data.h"
+#endif
+
 FS_EXTERN_OVERLAY(overlay10);
 FS_EXTERN_OVERLAY(overlay11);
 FS_EXTERN_OVERLAY(battle_anim);
@@ -748,6 +752,9 @@ static void BattleMain_CopyBattleSysToDTOAndFree(ApplicationManager *appMan)
     ParticleSystem_FreeAll();
 
     BattleAnimSystem_Delete(battleSys->battleAnimSys);
+#ifdef SDK_PORT
+    Gear_SetBattleSystem(NULL);
+#endif
     BattleContext_Free(battleSys->battleCtx);
 
     for (battlerId = 0; battlerId < battleSys->maxBattlers; battlerId++) {
@@ -1071,6 +1078,9 @@ static void BattleSys_New(BattleSystem *battleSys, FieldBattleDTO *dto)
     }
 
     battleSys->battleCtx = BattleContext_New(battleSys);
+#ifdef SDK_PORT
+    Gear_SetBattleSystem(battleSys);
+#endif
 
     for (i = 0; i < MAX_BATTLERS; i++) {
         battleSys->parties[i] = Party_New(HEAP_ID_BATTLE);

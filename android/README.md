@@ -59,6 +59,32 @@ settings).
 Turn the second display off with *Config -> Bottom screen on second display* in the
 settings GUI. *Swap Screens* swaps which screen goes on which panel.
 
+## Gear (lower-panel companion)
+
+The Thor's lower panel is taller than a DS screen, so the DS touch screen sits at its
+top and the **Gear** fills the space below it, in the spirit of HeartGold's
+Pokegear and Kanto Gear:
+
+* **Battle** (only during battles, opens by itself): the opponents' types, HP and
+  status, and every move of the Pokemon you are commanding with how well it hits each
+  opponent (`x2 Super effective`, `L x1/2 R x2` in double battles). Further down: stat
+  changes, your Pokemon's ability and item.
+* **Party**: HP, status and level at a glance; tap a Pokemon for its moves, stats,
+  ability, nature and item.
+* **Area**: the wild Pokemon of the route you are on for the current time of day
+  (walking, surfing, each rod, Poke Radar and swarms) with their rates and levels, and
+  which ones you have caught.
+* **Trainer**: money, badges, Pokedex counts, play time and the save slot.
+* **Settings**: how much the Gear reveals. *Vanilla* shows only what the game shows,
+  *Guide* (default) adds the encounter guide and type matchups but hides species you
+  have never seen, *Everything* also shows hidden values (IVs/EVs, the opponents'
+  abilities, items, moves and whole team).
+
+Tap **Full** (or press **L3**) to give the Gear the whole lower panel and **Split** to
+bring the DS touch screen back; battles bring it back by themselves. Turn the Gear off
+with *Config -> Gear companion on the lower screen*. On desktop builds it appears in
+the "Bottom Screen" window (F1 toggles full screen).
+
 ## Controls
 
 The built-in controller works out of the box (A, B, X, Y, L, R, Start, Select, D-pad).
@@ -73,5 +99,9 @@ Remap under *Input* in the settings GUI.
   compositing, frame-limiter wait, buffer swap).
 * The Android build is compiled with optimization (`-O2 -fno-strict-aliasing -fwrapv`);
   the PC builds are not.
+* Double battles: picking a target overran a 4-byte stack array on 64-bit (the DS code
+  counted a pointer's size); fixed in `battle_subscreen.c`.
+* Debug GUI *Gen Pokemon* can also start a wild battle against the chosen species, or a
+  battle against a trainer ID (optionally as a double battle), for testing.
 * stdout/stderr go to logcat with the tag `pokeplatinum`; the second-screen code logs as
   `libntr-display`.

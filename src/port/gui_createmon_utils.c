@@ -11,6 +11,13 @@
 
 #include "charcode_convert.h"
 
+#include "constants/heap.h"
+#include "encounter.h"
+#include "field/field_system.h"
+#include "field_task.h"
+#include "heap.h"
+#include "port/debug_field.h"
+
 #include <stdlib.h>
 
 
@@ -46,4 +53,50 @@ int GUI_CreateMon_GenPokemon(int speciesNo, int level) {
 
         return TRUE;
         
+}
+
+// --- debug battles ---------------------------------------------------------------------
+
+typedef struct DebugBattle {
+    int state;
+    int species;
+    int level;
+    int trainerID;
+    BOOL doubles;
+} DebugBattle;
+
+static BOOL FieldTask_DebugBattle(FieldTask *task)
+{
+    DebugBattle *battle = FieldTask_GetEnv(task);
+
+    if (battle->state++ == 0) {
+        if (battle->trainerID != 0) {
+            Encounter_NewVsTrainer(task, battle->trainerID, battle->doubles ? battle->trainerID : 0, 0, HEAP_ID_FIELD2, NULL);
+        } else {
+            Encounter_NewVsSpeciesAtLevel(task, battle->species, battle->level, NULL, FALSE);
+        }
+        return FALSE;
+    }
+
+    Heap_Free(battle);
+    return TRUE;
+}
+
+int GUI_CreateMon_StartBattle(int speciesNo, int level, int trainerID, int doubles)
+{
+    FieldSystem *fieldSystem = DEBUG_GetFieldSystem();
+    if (fieldSystem == NULL || FieldSystem_IsRunningTask(fieldSystem)
+        || Party_GetCurrentCount(SaveData_GetParty(fieldSystem->saveData)) == 0
+        || (trainerID == 0 && (speciesNo <= 0 || speciesNo > MAX_SPECIES))) {
+        return FALSE;
+    }
+
+    DebugBattle *battle = Heap_AllocAtEnd(HEAP_ID_FIELD2, sizeof(DebugBattle));
+    battle->state = 0;
+    battle->species = speciesNo;
+    battle->level = level;
+    battle->trainerID = trainerID;
+    battle->doubles = doubles;
+    FieldSystem_CreateTask(fieldSystem, FieldTask_DebugBattle, battle);
+    return TRUE;
 }

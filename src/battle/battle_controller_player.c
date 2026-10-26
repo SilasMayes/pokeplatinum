@@ -313,6 +313,28 @@ static inline BOOL SingleControllerForSide(BattleContext *battleCtx, int battler
     return battler == side + 2 && battleCtx->curCommandState[side] != COMMAND_SELECTION_END;
 }
 
+#ifdef SDK_PORT
+// For the Gear companion (src/port/gear_data.c): the local player's battler that is
+// picking its command (fight/bag/party/run, a move or a target) right now, or -1
+int BattleController_PortChoosingBattler(BattleSystem *battleSys)
+{
+    BattleContext *battleCtx = BattleSystem_GetBattleContext(battleSys);
+    if (battleCtx == NULL || battleCtx->command != BATTLE_CONTROL_COMMAND_SELECTION_INPUT) {
+        return -1;
+    }
+
+    int maxBattlers = BattleSystem_GetMaxBattlers(battleSys);
+    for (int i = 0; i < maxBattlers; i++) {
+        u8 state = battleCtx->curCommandState[i];
+        if (state >= COMMAND_SELECTION_SELECT && state <= COMMAND_SELECTION_RUN_SELECT
+            && BattlerData_GetBootState(BattleSystem_GetBattlerData(battleSys, i)) == BATTLER_BOOT_STATE_NORMAL) {
+            return i;
+        }
+    }
+    return -1;
+}
+#endif
+
 static void BattleControllerPlayer_CommandSelectionInput(BattleSystem *battleSys, BattleContext *battleCtx)
 {
     int maxBattlers = BattleSystem_GetMaxBattlers(battleSys);

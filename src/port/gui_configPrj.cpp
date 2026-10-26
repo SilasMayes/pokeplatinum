@@ -22,6 +22,11 @@ void ConfigPrjMain(bool * openState) {
 
     ConfigCheckBox("60 FPS", (bool*)&myConfig->enable60fps, configChanged);
     ConfigCheckBox("60 FPS Speed Fix", (bool*)&myConfig->enable60fpsSpeedFix, configChanged);
+    bool gear = myConfig->gearEnabled != FALSE;
+    if(ImGui::Checkbox("Gear companion on the lower screen", &gear)) {
+        myConfig->gearEnabled = gear ? TRUE : FALSE;
+        configChanged = true;
+    }
     ConfigCheckBox("Enable GF_Asserts", (bool*)&myConfig->enableAsserts, configChanged);
     ConfigCheckBox("DebugBreak on GF assertion fail", (bool*)&myConfig->breakDebuggerOnGfAssert, configChanged);
 

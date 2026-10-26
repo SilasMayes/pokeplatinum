@@ -18,6 +18,8 @@ namespace SIM::GUI {
 static std::vector<std::string> sSpeciesNames;
 static int sSpeciesNum = 0;
 static int sLevel = 1;
+static int sTrainerID = 0;
+static bool sDoubles = false;
 
 static constexpr ImVec2 BtnSize = {100, 20};
 
@@ -53,6 +55,17 @@ void CreateMonMain(bool * openState) {
 
     if(ImGui::Button("Gen Pokemon", BtnSize)) {
         GUI_CreateMon_GenPokemon(sSpeciesNum, sLevel);
+    }
+    ImGui::SameLine();
+    if(ImGui::Button("Battle it")) {
+        GUI_CreateMon_StartBattle(sSpeciesNum, sLevel, 0, FALSE);
+    }
+
+    ImGui::Separator();
+    ImGui::InputInt("Trainer ID", &sTrainerID);
+    ImGui::Checkbox("Double battle", &sDoubles);
+    if(ImGui::Button("Battle trainer") && sTrainerID > 0) {
+        GUI_CreateMon_StartBattle(0, 0, sTrainerID, sDoubles);
     }
 
     ImGui::End();

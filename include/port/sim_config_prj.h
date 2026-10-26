@@ -23,7 +23,17 @@ typedef struct {
     BOOL autosave; // Save automatically while exploring, when it is safe to
     int autosaveMinutes; // How often autosave runs
     BOOL autosaveOnExit; // Also save when the app is closed or sent to the background
+
+    // Gear section (companion UI on the lower display)
+    BOOL gearEnabled;
+    int gearDiscovery; // GEAR_DISCOVERY_*: how much the Gear reveals
 } SIM_Config_prj_type;
+
+enum {
+    GEAR_DISCOVERY_VANILLA = 0,   // only what the game itself tells you
+    GEAR_DISCOVERY_GUIDE = 1,     // encounter guide; unseen species stay hidden
+    GEAR_DISCOVERY_EVERYTHING = 2 // everything, including IVs/EVs and unseen species
+};
 
 void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig);
 BOOL SIM_Config_prj_LoadConfigFile(SIM_Config_prj_type * aConfig);
