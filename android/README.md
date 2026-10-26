@@ -35,21 +35,27 @@ settings).
 ## More than one game (Renegade Platinum)
 
 The app can hold several games side by side, each with its own extracted ROM and its
-own saves (the settings are shared). Add one with *Application -> Games -> Add a game*
-in the settings GUI, and pick the `.nds` file. When more than one game is installed, a
-picker comes up when the app starts (turn it off in the same window); *Play* in that
-window switches games (the app saves and restarts).
+own saves (the settings are shared). Switch between them from the Gear's **Settings**
+tab (*Switch to ...*, tap twice) or the settings GUI (*Application -> Games*); the app
+saves first when the game allows it and restarts into the other game. When more than
+one game is installed, a picker also comes up when the app starts (turn it off there).
 
-**Renegade Platinum** (Drayano's hack, including the Classic version) works this way:
-patch your Platinum (USA) ROM with the hack's xdelta patch yourself (for example with
-an xdelta app or Delta Patcher), then add the patched `.nds` as a game. Its new data
-files (Pokemon, trainers, encounters, text, scripts...) load like the original's. The
-few things the hack changes inside the game's code are read from the patched ROM at
-startup (`src/port/rom_patches.c`): map headers, shop stock, Game Corner prizes, TM
-moves, icon palettes, shiny odds (1 in 512), every Pokemon obeying, the Fairy type and
-its type chart, the Fairy move colours and Pokedex icon, and the Pokemon in Professor
-Rowan's introduction. The game picker names it "Renegade Platinum" or "Renegade
-Platinum Classic".
+**Adding Renegade Platinum** (Drayano's hack, including the Classic version): Gear
+*Settings -> Add a game* (or the picker's *Add a game*). Choose your Pokemon Platinum
+(USA) ROM, then the patches in order: `RenegadePlatinum4997.xdelta` (or
+`RenegadePlatinum3541.xdelta` for early carts), then `ClassicVersion.xdelta` for
+Classic. Extra patches made for Renegade (e.g. the ShinyRate ones) can follow. The app
+applies them itself (`sim_vcdiff.c`, xdelta/VCDIFF without secondary compression) and
+extracts the result as a new game named "Renegade Platinum (Classic)". An already
+patched `.nds` can be added the same way without patches.
+
+The hack's new data files (Pokemon, trainers, encounters, text, scripts...) load like
+the original's. The few things it changes inside the game's code are read from the
+patched ROM at startup (`src/port/rom_patches.c`): map headers, shop stock, Game Corner
+prizes, TM moves, icon palettes, shiny odds (1 in 512, or what a ShinyRate patch sets),
+every Pokemon obeying, the Fairy type and its type chart, the Fairy move colours and
+Pokedex icon, and the Pokemon in Professor Rowan's introduction. The SpeedUp patch's
+code changes (instant text and HP bars) are not carried over.
 
 ## Saves
 

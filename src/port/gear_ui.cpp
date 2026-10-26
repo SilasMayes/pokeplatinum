@@ -4,7 +4,10 @@
 // with Dear ImGui.
 #include <nitro.h>
 #include <simulator/imgui/imgui.hpp>
+#include <simulator/sim_carts.h>
 #include <simulator/sim_companion.h>
+
+#include <SDL2/SDL.h>
 
 #include <cmath>
 #include <cstdio>
@@ -1083,9 +1086,66 @@ void DrawTrainer() {
 
 // --- settings ----------------------------------------------------------------------------
 
+// The installed games (libntr sim_carts.h): switch, or add one (e.g. Renegade Platinum)
+SIM_Cart sCarts[SIM_CARTS_MAX];
+int sCartCount = 0;
+int sCartRefresh = 0;
+int sConfirmSwitch = -1;
+Uint64 sConfirmUntil = 0;
+
+void DrawGames() {
+  if (--sCartRefresh <= 0) {
+    sCartRefresh = 60;
+    sCartCount = SIM_Carts_List(sCarts);
+  }
+  const SIM_Cart *current = SIM_Carts_Current();
+  const Uint64 now = SDL_GetTicks64();
+  if (now > sConfirmUntil) {
+    sConfirmSwitch = -1;
+  }
+
+  ImGui::PushFont(sBold, S(18.0f));
+  ImGui::TextUnformatted("Game");
+  ImGui::PopFont();
+  ImGui::Text("Playing: %s", current->name);
+
+  const float width = ImGui::GetContentRegionAvail().x;
+  for (int i = 0; i < sCartCount; i++) {
+    if (strcmp(sCarts[i].id, current->id) == 0) {
+      continue;
+    }
+    char label[96];
+    if (sConfirmSwitch == i) {
+      snprintf(label, sizeof(label), "Tap again: save and switch to %s", sCarts[i].name);
+    } else {
+      snprintf(label, sizeof(label), "Switch to %s", sCarts[i].name);
+    }
+    ImGui::PushID(i);
+    if (ImGui::Button(label, ImVec2(width, S(40.0f))) && !sDragging) {
+      if (sConfirmSwitch == i) {
+        SIM_Carts_SwitchTo(sCarts[i].id);
+      } else {
+        sConfirmSwitch = i;
+        sConfirmUntil = now + 4000;
+      }
+    }
+    ImGui::PopID();
+  }
+  if (ImGui::Button(sCartCount > 1 ? "Add another game..." : "Add a game (e.g. Renegade Platinum)...", ImVec2(width, S(40.0f)))
+      && !sDragging) {
+    SIM_Carts_Add(nullptr);
+    sCartRefresh = 0;
+  }
+  ImGui::TextWrapped("Each game has its own saves. Switching saves first (when the game allows it) and "
+                     "restarts the app. Adding a game opens on the top screen.");
+  ImGui::Dummy(ImVec2(0, S(8.0f)));
+}
+
 void DrawSettings() {
   SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
   bool changed = false;
+
+  DrawGames();
 
   ImGui::PushFont(sBold, S(18.0f));
   ImGui::TextUnformatted("Discovery");

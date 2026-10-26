@@ -16,7 +16,7 @@ static std::string sMessage;
 
 static void GameAdded(BOOL ok, const char *id) {
     (void)id;
-    sMessage = ok ? "Added. Choose Play to switch to it." : "No game was added.";
+    sMessage = ok ? "Added. Choose Play to switch to it." : "";
 }
 
 void GamesMain(bool *openState) {
@@ -44,8 +44,8 @@ void GamesMain(bool *openState) {
     }
 
     ImGui::Separator();
-    if (ImGui::Button("Add a game (choose a ROM)")) {
-        sMessage = "Choose the .nds file...";
+    if (ImGui::Button("Add a game (a ROM, or a ROM + patches like Renegade Platinum)")) {
+        sMessage.clear();
         SIM_Carts_Add(GameAdded);
     }
     if (!sMessage.empty()) {
