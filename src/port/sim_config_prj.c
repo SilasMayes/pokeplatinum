@@ -1,4 +1,7 @@
 #include <nitro.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <simulator/config/ini.h>
 
 #include "port/sim_config_prj.h"
@@ -42,6 +45,22 @@ static int IniHandler(void* user, const char* section, const char* name,
     if(MATCH("Cheats", "RunFromTrainerBattles")) {
         config->runFromTrainerBattles = StringToBool(value);
     }
+
+    // Saves section
+    if(MATCH("Saves", "Slot")) {
+        config->saveSlot = atoi(value);
+    }
+    if(MATCH("Saves", "Autosave")) {
+        config->autosave = StringToBool(value);
+    }
+    if(MATCH("Saves", "AutosaveMinutes")) {
+        config->autosaveMinutes = atoi(value);
+    }
+    if(MATCH("Saves", "AutosaveOnExit")) {
+        config->autosaveOnExit = StringToBool(value);
+    }
+
+    return 1;
 }
 
 static const char * BoolToString(BOOL arg)
@@ -76,6 +95,14 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
 
   // Cheats section
   aConfig->walkThroughWalls = FALSE;
+  aConfig->disableRandomEncounters = FALSE;
+  aConfig->runFromTrainerBattles = FALSE;
+
+  // Saves section
+  aConfig->saveSlot = 1;
+  aConfig->autosave = TRUE;
+  aConfig->autosaveMinutes = 5;
+  aConfig->autosaveOnExit = TRUE;
 }
 
 // Loads the configuration file. If it does not exist, return false
@@ -88,6 +115,9 @@ BOOL SIM_Config_prj_LoadConfigFile(SIM_Config_prj_type * aConfig)
 void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
 {
     FILE * configFile = fopen(SIM_CONFIG_PRJ_FILE_PATH, "w");
+    if (configFile == NULL) {
+        return;
+    }
     
     fprintf(configFile, "[General]\n");
     fprintf(configFile, "60Fps=%s\n", BoolToString(aConfig->enable60fps));
@@ -100,6 +130,13 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "WalkThroughWalls=%s\n", BoolToString(aConfig->walkThroughWalls));
     fprintf(configFile, "DisableRandomEncounters=%s\n", BoolToString(aConfig->disableRandomEncounters));
     fprintf(configFile, "RunFromTrainerBattles=%s\n", BoolToString(aConfig->runFromTrainerBattles));
+    fprintf(configFile, "\n");
+
+    fprintf(configFile, "[Saves]\n");
+    fprintf(configFile, "Slot=%d\n", aConfig->saveSlot);
+    fprintf(configFile, "Autosave=%s\n", BoolToString(aConfig->autosave));
+    fprintf(configFile, "AutosaveMinutes=%d\n", aConfig->autosaveMinutes);
+    fprintf(configFile, "AutosaveOnExit=%s\n", BoolToString(aConfig->autosaveOnExit));
 
     fclose(configFile);
 }

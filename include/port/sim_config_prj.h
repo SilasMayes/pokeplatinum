@@ -17,6 +17,12 @@ typedef struct {
 	BOOL walkThroughWalls; // When enabled, allows the player to walk through walls
     BOOL disableRandomEncounters; // When enabled, all random encounters are turned off
     BOOL runFromTrainerBattles; // When enabled, allows running away from trainer battles
+
+    // Saves section
+    int saveSlot; // Save slot in use, 1-based (slot 1 is the original save.bin)
+    BOOL autosave; // Save automatically while exploring, when it is safe to
+    int autosaveMinutes; // How often autosave runs
+    BOOL autosaveOnExit; // Also save when the app is closed or sent to the background
 } SIM_Config_prj_type;
 
 void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig);

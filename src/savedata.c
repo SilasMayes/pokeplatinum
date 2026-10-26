@@ -15,6 +15,10 @@
 #include "unk_0209A74C.h"
 #include "unk_0209AA74.h"
 
+#ifdef SDK_PORT
+#include "port/save_slots.h"
+#endif
+
 static void SaveTable_Clear(SaveDataBody *body, const SavePageInfo *pageInfo);
 static void SavePageInfo_Init(SavePageInfo *pageInfo);
 static void SaveBlockInfo_Init(SaveBlockInfo *blockInfo, const SavePageInfo *pageInfo);
@@ -32,16 +36,35 @@ static BOOL SaveData_CardSave_Main(s32 lockID, BOOL lockFlag, BOOL *result);
 static void SaveData_CardSave_Error(s32 lockID, int errorID);
 static void SaveDataExtra_SaveKey(SaveData *saveData, int extraSaveID, u32 *returnKey, u32 *oldKey, u8 *keyFlag);
 static void SaveDataExtra_SetSaveKey(SaveData *saveData, int extraSaveID, u32 newKey, u32 oldKey, u8 keyFlag);
+#ifdef SDK_PORT
+static BOOL SaveBlockFooter_Validate(SaveData *saveData, u64 bodyAddress, int blockID);
+#endif
 
 static SaveData *sSaveDataPtr = NULL;
 static BOOL sSaveComplete;
 
+#ifdef SDK_PORT
+SaveData *SaveData_Init(void)
+{
+    SaveData *saveData = Heap_Alloc(HEAP_ID_SAVE, sizeof(SaveData));
+    SaveData_Reload(saveData);
+    SaveSlots_OnLoaded(saveData);
+    return saveData;
+}
+
+// The body of SaveData_Init without the allocation, so the port can load another save
+// slot into the existing SaveData (everything holding a SaveData pointer stays valid).
+void SaveData_Reload(SaveData *saveData)
+{
+    MI_CpuClearFast(saveData, sizeof(SaveData));
+#else
 SaveData *SaveData_Init(void)
 {
     SaveData *saveData = Heap_Alloc(HEAP_ID_SAVE, sizeof(SaveData));
     ;
 
     MI_CpuClearFast(saveData, sizeof(SaveData));
+#endif
 
     sSaveDataPtr = saveData;
 
@@ -95,8 +118,34 @@ SaveData *SaveData_Init(void)
         break;
     }
 
+#ifndef SDK_PORT
     return saveData;
+#endif
 }
+
+#ifdef SDK_PORT
+// TRUE if image (a whole 512 KB backup image, e.g. an emulator .sav) holds a valid
+// Platinum save in either of its two copies
+BOOL SaveData_IsValidBackupImage(const void *image, u32 size)
+{
+    if (sSaveDataPtr == NULL || size < (BACKUP_SECTOR_START + SAVE_PAGE_MAX) * SAVE_SECTOR_SIZE) {
+        return FALSE;
+    }
+
+    // SaveBlockFooter_Validate checksums in place, so work on a copy of each half
+    u8 *copy = Heap_AllocAtEnd(HEAP_ID_APPLICATION, SAVE_SECTOR_SIZE * SAVE_PAGE_MAX);
+    BOOL valid = FALSE;
+
+    const u32 starts[] = { PRIMARY_SECTOR_START, BACKUP_SECTOR_START };
+    for (int i = 0; i < 2 && !valid; i++) {
+        memcpy(copy, (const u8 *)image + starts[i] * SAVE_SECTOR_SIZE, SAVE_SECTOR_SIZE * SAVE_PAGE_MAX);
+        valid = SaveBlockFooter_Validate(sSaveDataPtr, (u64)copy, SAVE_BLOCK_ID_NORMAL);
+    }
+
+    Heap_Free(copy);
+    return valid;
+}
+#endif
 
 SaveData *SaveData_Ptr(void)
 {
@@ -184,6 +233,9 @@ int SaveData_Save(SaveData *saveData)
     if (saveResult == SAVE_RESULT_OK) {
         saveData->dataExists = TRUE;
         saveData->isNewGameData = FALSE;
+#ifdef SDK_PORT
+        SaveSlots_OnSaved(saveData);
+#endif
     }
 
     return saveResult;

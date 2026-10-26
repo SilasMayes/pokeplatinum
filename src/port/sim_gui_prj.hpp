@@ -11,6 +11,8 @@ void CreateMonInit();
 void CreateMonMain(bool * openState);
 void MapJumpInit();
 void MapJumpMain(bool * openState);
+void SavesMain(bool * openState);
+void PrjOverlay();
 
 }
 

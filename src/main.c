@@ -35,6 +35,7 @@
 
 #ifdef SDK_PORT
 #include "port/sim_config_prj.h"
+#include "port/save_slots.h"
 #if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
 #include "port/sim_icon.h"
 #endif
@@ -72,6 +73,8 @@ void NitroMain(void)
 {
 #ifdef SDK_PORT
     SIM_Config_prj_init();
+    // Point the save file at the slot in use before the save is loaded
+    SaveSlots_Init();
     // Android has no window icon (the launcher icon comes from the APK)
     #if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
     SetPokeplatinumAppIcon();

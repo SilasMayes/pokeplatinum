@@ -41,6 +41,7 @@
 
 #ifdef SDK_PORT
 #include "port/debug_field.h"
+#include "port/autosave.h"
 #endif
 
 FS_EXTERN_OVERLAY(overlay5);
@@ -195,6 +196,10 @@ static void TeardownFieldSystem(ApplicationManager *appMan)
     sub_0209C388(fieldSystem->battleSubscreenCursorOn);
 
     Heap_Free(fieldSystem->processManager);
+#ifdef SDK_PORT
+    // No overworld anymore: nothing may autosave or jump maps through it
+    DEBUG_SetFieldSystem(NULL);
+#endif
     ApplicationManager_FreeData(appMan);
     Heap_Destroy(HEAP_ID_NETWORK_ICON);
     Heap_Destroy(HEAP_ID_FIELD2);
@@ -247,6 +252,10 @@ static void HandleFieldInput(FieldSystem *fieldSystem)
     FieldInput fieldInput;
     if (processInput) {
         PlayerAvatar_UpdatePlayerMoveState(fieldSystem->playerAvatar);
+#ifdef SDK_PORT
+        // The player has control and nothing else is running: a safe moment to autosave
+        Autosave_FieldTick(fieldSystem);
+#endif
         FieldInput_Update(&fieldInput, fieldSystem, gSystem.pressedKeys, gSystem.heldKeys);
     }
 

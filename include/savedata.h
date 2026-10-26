@@ -78,6 +78,10 @@ typedef struct SaveCheckFooter {
 } SaveCheckFooter;
 
 SaveData *SaveData_Init(void);
+#ifdef SDK_PORT
+void SaveData_Reload(SaveData *saveData);
+BOOL SaveData_IsValidBackupImage(const void *image, u32 size);
+#endif
 SaveData *SaveData_Ptr(void);
 void *SaveData_SaveTable(SaveData *saveData, int saveTableID);
 const void *SaveData_SaveTableConst(const SaveData *saveData, int saveTableID);

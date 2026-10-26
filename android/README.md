@@ -7,8 +7,9 @@ bottom screen on the lower panel.
 ## Getting the APK
 
 GitHub Actions builds it on every push to `thor-android`
-(`.github/workflows/build_android.yml`). Download the `pokeplatinum-android` artifact
-from the run and install `app-release.apk`.
+(`.github/workflows/build_android.yml`) and publishes it as the **thor-android-latest**
+pre-release (`pokeplatinum-thor.apk`), so it can be downloaded straight from the
+device's browser. The `pokeplatinum-android` artifact on the run has the same APK.
 
 Every build is signed with the same key (`android/app/stable.keystore`), so new builds
 install over old ones and keep your saves. Do not uninstall the app unless you have
@@ -28,8 +29,24 @@ Pokemon Platinum (USA). Pick the `.nds` file in the file picker; it is copied in
 extracted, and deleted again.
 
 All files live in `Android/data/org.pokeplatinum.port/files/`: the extracted game
-files, `save.bin`, `sim_config.ini` (libntr settings) and `sim_config_prj.ini` (game
+files, the saves, `sim_config.ini` (libntr settings) and `sim_config_prj.ini` (game
 settings).
+
+## Saves
+
+* **Save slots:** four independent games. On the main menu, **L/R** switch slots (the
+  slot shows next to CONTINUE / NEW GAME). An empty slot offers NEW GAME without
+  touching the others. Slot 1 is `save.bin`, slots 2-4 are `save_slot2.bin` and so on;
+  each is a raw 512 KB DS save, the same format as a melonDS/DeSmuME `.sav`.
+* **Import / export:** *Application -> Saves* in the settings GUI. Import takes a
+  `.sav` (or DeSmuME `.dsv`) from anywhere through the file picker; the slot's previous
+  save is kept as `.bak`. Export writes a 512 KB `.sav` an emulator can load.
+* **Autosave:** the game's own save, run automatically every few minutes (default 5)
+  and when the app is closed or sent to the background, but only when the start
+  menu's SAVE would be allowed, the player is standing still on the overworld with
+  nothing else going on, and the game has been saved normally at least once (it never
+  overwrites a different game). A small "Autosaved" notice appears in the corner.
+  Settings are in the same Saves window.
 
 ## Screens
 
@@ -52,5 +69,9 @@ Remap under *Input* in the settings GUI.
 ## Notes
 
 * Default 3D resolution is 5x; change it under *Config -> Internal Resolution*.
+* The libntr window shows where each frame's time goes (game logic, 3D draw calls,
+  compositing, frame-limiter wait, buffer swap).
+* The Android build is compiled with optimization (`-O2 -fno-strict-aliasing -fwrapv`);
+  the PC builds are not.
 * stdout/stderr go to logcat with the tag `pokeplatinum`; the second-screen code logs as
   `libntr-display`.

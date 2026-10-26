@@ -68,8 +68,10 @@ ar = toolchain / 'llvm-ar'
 strip = toolchain / 'llvm-strip'
 
 [built-in options]
-c_args = ['-I' + prefix / 'include']
-cpp_args = ['-I' + prefix / 'include']
+# The decompiled game code type-puns and relies on wrapping signed arithmetic (as the
+# DS compiler allowed), so optimize without strict aliasing or signed-overflow UB
+c_args = ['-I' + prefix / 'include', '-fno-strict-aliasing', '-fwrapv']
+cpp_args = ['-I' + prefix / 'include', '-fno-strict-aliasing', '-fwrapv']
 c_link_args = ['-L' + prefix / 'lib']
 cpp_link_args = ['-L' + prefix / 'lib']
 
@@ -87,7 +89,8 @@ INI
 
 # 4. libmain.so
 if [ ! -f "$BUILD/meson/build.ninja" ]; then
-    $MESON setup -Dbuild_target=android \
+    # The PC builds compile without optimization; a handheld CPU can't absorb that
+    $MESON setup -Dbuild_target=android -Doptimization=2 \
         --native-file="$ROOT/meson/native.ini" \
         --cross-file="$BUILD/android.ini" \
         -- "$BUILD/meson"

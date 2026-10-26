@@ -54,6 +54,20 @@
 #include "res/text/bank/main_menu_options.h"
 #include "res/text/bank/unk_0695.h"
 
+#ifdef SDK_PORT
+#include <stdio.h>
+
+#include "port/save_slots.h"
+
+#include "constants/charcode.h"
+
+#include "charcode_util.h"
+#include "string_gf.h"
+
+// The save-check application the title screen runs before the main menu
+extern const ApplicationManagerTemplate Unk_020F8AB4;
+#endif
+
 FS_EXTERN_OVERLAY(game_start);
 FS_EXTERN_OVERLAY(game_opening);
 FS_EXTERN_OVERLAY(main_menu);
@@ -218,6 +232,10 @@ typedef struct MainMenuAppData {
     Sprite *scrollUpArrowSprite;
     Sprite *scrollDownArrowSprite;
     int focusedBorderCycleIndex;
+#ifdef SDK_PORT
+    BOOL emptySlot; // this save slot has no game, but others do: show NEW GAME, not the intro
+    int pendingSlotSwitch; // slot to load once the menu has faded out, or -1
+#endif
 } MainMenuAppData;
 
 /*
@@ -716,6 +734,12 @@ static BOOL RenderContinueOption(MainMenuAppData *appData, enum MainMenuOption o
 {
     StringTemplate *strTemplate; // Forward-declaration required to match.
 
+#ifdef SDK_PORT
+    if (appData->emptySlot) {
+        return FALSE;
+    }
+#endif
+
     MessageLoader *msgLoader = MessageLoader_Init(MSG_LOADER_LOAD_ON_DEMAND, NARC_INDEX_MSGDATA__PL_MSG, TEXT_BANK_MAIN_MENU_OPTIONS, HEAP_ID_MAIN_MENU);
     strTemplate = StringTemplate_Default(HEAP_ID_MAIN_MENU);
 
@@ -887,6 +911,77 @@ static BOOL RenderWiiMsgSettingsOption(MainMenuAppData *appData, enum MainMenuOp
 
     return 1;
 }
+
+#ifdef SDK_PORT
+// ASCII (letters, digits, spaces) to the game's character set
+static void AsciiToCharCodes(const char *ascii, charcode_t *out, int outLen)
+{
+    int i = 0;
+    for (; ascii[i] != '\0' && i < outLen - 1; i++) {
+        char c = ascii[i];
+        if (c >= 'A' && c <= 'Z') {
+            out[i] = CHAR_A + (c - 'A');
+        } else if (c >= 'a' && c <= 'z') {
+            out[i] = CHAR_a + (c - 'a');
+        } else if (c >= '0' && c <= '9') {
+            out[i] = CHAR_0 + (c - '0');
+        } else if (c == '<') {
+            out[i] = CHAR_ARROW_LEFT;
+        } else if (c == '>') {
+            out[i] = CHAR_ARROW_RIGHT;
+        } else if (c == '/') {
+            out[i] = CHAR_SLASH;
+        } else {
+            out[i] = CHAR_SPACE;
+        }
+    }
+    out[i] = CHAR_EOS;
+}
+
+// "< SLOT 2/4 >" at the right of the first option (CONTINUE, or NEW GAME on an empty slot)
+static void PrintSaveSlotLabel(MainMenuAppData *appData)
+{
+    Window *window = NULL;
+    for (int i = 0; i < NUM_MAIN_MENU_OPTIONS; i++) {
+        if (appData->optionApps[i] && Window_IsInUse(&appData->optionWindows[i])) {
+            window = &appData->optionWindows[i];
+            break;
+        }
+    }
+    if (window == NULL) {
+        return;
+    }
+
+    char ascii[24];
+    snprintf(ascii, sizeof(ascii), "< SLOT %d/%d >", SaveSlots_Current() + 1, SAVE_SLOT_COUNT);
+    charcode_t chars[24];
+    AsciiToCharCodes(ascii, chars, NELEMS(chars));
+
+    String *string = String_Init(NELEMS(chars), HEAP_ID_MAIN_MENU);
+    String_CopyChars(string, chars);
+
+    u32 textWidth = Font_CalcStringWidth(FONT_SYSTEM, string, Font_GetAttribute(FONT_SYSTEM, FONTATTR_LETTER_SPACING));
+    u32 xOffset = Window_GetWidth(window) * TILE_WIDTH_PIXELS - (textWidth + 8);
+    Text_AddPrinterWithParamsAndColor(window, FONT_SYSTEM, string, xOffset, 0, TEXT_SPEED_NO_TRANSFER, TEXT_COLOR(1, 2, 15), NULL);
+    Window_ScheduleCopyToVRAM(window);
+
+    String_Free(string);
+}
+
+// Focus the first option that is shown (CONTINUE is hidden on an empty slot)
+static void FocusFirstAvailableOption(MainMenuAppData *appData)
+{
+    if (appData->optionApps[appData->focusedOption]) {
+        return;
+    }
+    for (int i = 0; i < NUM_MAIN_MENU_OPTIONS; i++) {
+        if (appData->optionApps[i]) {
+            appData->focusedOption = i;
+            return;
+        }
+    }
+}
+#endif
 
 static BOOL RenderOptions(MainMenuAppData *appData)
 {
@@ -1137,6 +1232,18 @@ static BOOL MainMenu_Init(ApplicationManager *appMan, int *unused)
         appData->isNewGame = TRUE;
     }
 
+#ifdef SDK_PORT
+    appData->pendingSlotSwitch = -1;
+    SaveSlots_SetMainMenuActive(TRUE);
+
+    // An empty slot while other slots hold games: show the menu (NEW GAME, and L/R to
+    // get back to the others) rather than going straight into the new game intro
+    if (appData->isNewGame && SaveSlots_AnyOtherSlotHasData()) {
+        appData->isNewGame = FALSE;
+        appData->emptySlot = TRUE;
+    }
+#endif
+
     Sound_ConfigureBGMChannelsAndReverb(SOUND_CHANNEL_CONFIG_DEFAULT);
     Sound_SetScene(SOUND_SCENE_NONE);
 
@@ -1194,6 +1301,10 @@ static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
         SetVBlankCallback(MainMenuVBlankCallback, appData->bgConfig);
 
         RenderOptions(appData);
+#ifdef SDK_PORT
+        FocusFirstAvailableOption(appData);
+        PrintSaveSlotLabel(appData);
+#endif
         RenderOptionsFrames(appData, appData->focusedOption);
         MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_IN, MAIN_MENU_STATE_SELECT_OPTION, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
 
@@ -1201,6 +1312,30 @@ static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
         appData->wirelessCheckState = MAIN_MENU_WIRELESS_CHECK_START;
         break;
     case MAIN_MENU_STATE_SELECT_OPTION:
+#ifdef SDK_PORT
+    {
+        // L/R (or the Saves window in the settings GUI) switch save slots. The menu fades
+        // out like it does for B, the slot is loaded, and the menu comes back for it.
+        int slot = SaveSlots_TakeRequestedSwitch();
+        if (slot < 0 && JOY_NEW(PAD_BUTTON_L | PAD_BUTTON_R)) {
+            int step = JOY_NEW(PAD_BUTTON_R) ? 1 : SAVE_SLOT_COUNT - 1;
+            slot = (SaveSlots_Current() + step) % SAVE_SLOT_COUNT;
+        }
+
+        if (slot >= 0) {
+            Sound_PlayEffect(SE_CONFIRM_sseq_3);
+            appData->pendingSlotSwitch = slot;
+            appData->nextApplication = NEXT_APP_TITLE_SCREEN;
+
+            if (appData->wirelessCheckState == MAIN_MENU_WIRELESS_CHECK_CHECK_RESULT) {
+                appData->wirelessCheckState = MAIN_MENU_WIRELESS_CHECK_STOP;
+            }
+
+            MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_OUT, MAIN_MENU_STATE_EXIT, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
+            break;
+        }
+    }
+#endif
         if (JOY_NEW(PAD_BUTTON_A | PAD_BUTTON_B)) {
             if (JOY_NEW(PAD_BUTTON_A)) {
                 Sound_PlayEffect(SE_CONFIRM_sseq_3);
@@ -1221,6 +1356,13 @@ static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
                 MainMenuUtil_SetFadeToWhite(TRUE);
             }
 
+#ifdef SDK_PORT
+            if (appData->nextApplication == NEXT_APP_GAME_INTRO && appData->emptySlot) {
+                // Nothing to overwrite in this slot
+                MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_OUT, MAIN_MENU_STATE_EXIT, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
+                break;
+            }
+#endif
             if (appData->nextApplication == NEXT_APP_GAME_INTRO) {
                 appData->pendingAlerts |= NEW_GAME_WARN;
                 appData->alertsPending = TRUE;
@@ -1334,10 +1476,30 @@ static BOOL MainMenu_Exit(ApplicationManager *appMan, int *unused)
 {
     MainMenuAppData *appData = ApplicationManager_Data(appMan);
 
+#ifdef SDK_PORT
+    SaveSlots_SetMainMenuActive(FALSE);
+
+    int pendingSlotSwitch = appData->pendingSlotSwitch;
+    SaveData *saveData = appData->saveData;
+    if (pendingSlotSwitch < 0) {
+        EnqueueNextApplication(appData);
+    }
+#else
     EnqueueNextApplication(appData);
+#endif
 
     ApplicationManager_FreeData(appMan);
     Heap_Destroy(HEAP_ID_MAIN_MENU);
+
+#ifdef SDK_PORT
+    if (pendingSlotSwitch >= 0) {
+        // Load the other slot (with the menu's memory freed: loading needs room for two
+        // copies of the save), then run the same save check the title screen does
+        // (corrupted-save messages) before the menu shows again
+        SaveSlots_Select(saveData, pendingSlotSwitch);
+        EnqueueApplication(FS_OVERLAY_ID_NONE, &Unk_020F8AB4);
+    }
+#endif
 
     MainMenuUtil_ToggleTerminateOnGBACartRemoved(FALSE);
 
