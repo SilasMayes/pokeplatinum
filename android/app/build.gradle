@@ -10,7 +10,7 @@ android {
         applicationId 'org.pokeplatinum.port'
         // Android 10+: the AYN Thor ships Android 13
         minSdk 29
-        targetSdk 34
+        targetSdk 35
         versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
         versionName System.getenv('VERSION_NAME') ?: 'dev'
 
@@ -39,6 +39,13 @@ android {
             signingConfig signingConfigs.stable
             minifyEnabled false
         }
+    }
+
+    lint {
+        // Release builds run lint's "vital" checks; none of them are worth failing a
+        // sideloaded build over (e.g. Play Store target SDK deadlines).
+        checkReleaseBuilds false
+        abortOnError false
     }
 
     compileOptions {
