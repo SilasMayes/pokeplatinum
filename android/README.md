@@ -32,22 +32,53 @@ All files live in `Android/data/org.pokeplatinum.port/files/`: the extracted gam
 files, the saves, `sim_config.ini` (libntr settings) and `sim_config_prj.ini` (game
 settings).
 
+## Settings
+
+The **back button / back gesture** or **R3** opens the settings on the top screen (the
+game waits meanwhile). Everything is big enough to tap, scrolls with a finger, and works
+with the controller too: D-pad to move, A to choose, B to go back, L/R for the previous /
+next page.
+
+* **Games**: switch games, add one (Renegade Platinum), choose at launch.
+* **Saves**: save slots, import / export, autosave, save now.
+* **Gameplay**: 60 FPS options.
+* **Display**: 3D resolution, second display, layout, swap screens, vsync.
+* **Sound**, **Controls** (remap buttons: tap a control, press the button).
+* **Gear**, **Cheats**.
+* **Advanced**: frame timings, the game's assertion checks, and *Developer windows* (the
+  original floating debug windows: libntr, multiplayer, Gen Pokemon, Gen Items, Jump to
+  Map...).
+
 ## More than one game (Renegade Platinum)
 
 The app can hold several games side by side, each with its own extracted ROM and its
-own saves (the settings are shared). Switch between them from the Gear's **Settings**
-tab (*Switch to ...*, tap twice) or the settings GUI (*Application -> Games*); the app
-saves first when the game allows it and restarts into the other game. When more than
-one game is installed, a picker also comes up when the app starts (turn it off there).
+own saves (the settings are shared). Switch between them in *Settings > Games* (tap a
+game twice); the app saves first when the game allows it and restarts into the other
+game. When more than one game is installed, a picker also comes up when the app starts
+(turn it off there or in *Settings > Games*).
 
-**Adding Renegade Platinum** (Drayano's hack, including the Classic version): Gear
-*Settings -> Add a game* (or the picker's *Add a game*). Choose your Pokemon Platinum
-(USA) ROM, then the patches in order: `RenegadePlatinum4997.xdelta` (or
-`RenegadePlatinum3541.xdelta` for early carts), then `ClassicVersion.xdelta` for
-Classic. Extra patches made for Renegade (e.g. the ShinyRate ones) can follow. The app
-applies them itself (`sim_vcdiff.c`, xdelta/VCDIFF without secondary compression) and
-extracts the result as a new game named "Renegade Platinum (Classic)". An already
-patched `.nds` can be added the same way without patches.
+**Adding Renegade Platinum** (Drayano's hack, including the Classic version): unzip the
+download, put your Pokemon Platinum (USA) ROM in the same folder (or choose it
+afterwards), then *Settings > Games > Add a game > Choose a folder* and pick the folder.
+The app tries every patch in it on the ROM and on each other (xdelta's own checksums say
+whether a patch was made for what it is applied to, `sim_vcdiff.c`) and shows what it
+found:
+
+* the patch that goes on the ROM: `RenegadePlatinum4997.xdelta`, or
+  `RenegadePlatinum3541.xdelta` for early ROMs (the one that doesn't match is listed
+  under *Not used*);
+* the extras that go on top of it, as switches: `ClassicVersion`, `SpeedUpPatch`;
+* extras that change the same thing as a choice: *ShinyRate: None / 1 4096 / 1 8192*.
+
+*Patch and add* builds the game and extracts it as a new game (named "Renegade Platinum
+Classic", "Renegade Platinum"...). Extras that change bytes in place are combined from
+their changes, so any of them can go together. Folders with several ROMs, a ROM of another
+game, archives that still need unzipping and unsupported patch formats (IPS/BPS/UPS) are
+handled and explained on the same screen. On Android the folder's patches and Platinum ROMs
+are copied in first and deleted again afterwards.
+
+*Choose the files one by one* is still there: the ROM, then each patch in order. An
+already patched `.nds` can be added that way (or from a folder) without patches.
 
 The hack's new data files (Pokemon, trainers, encounters, text, scripts...) load like
 the original's. The few things it changes inside the game's code are read from the
@@ -63,7 +94,7 @@ code changes (instant text and HP bars) are not carried over.
   slot shows next to CONTINUE / NEW GAME). An empty slot offers NEW GAME without
   touching the others. Slot 1 is `save.bin`, slots 2-4 are `save_slot2.bin` and so on;
   each is a raw 512 KB DS save, the same format as a melonDS/DeSmuME `.sav`.
-* **Import / export:** *Application -> Saves* in the settings GUI. Import takes a
+* **Import / export:** *Settings > Saves*. Import takes a
   `.sav` (or DeSmuME `.dsv`) from anywhere through the file picker; the slot's previous
   save is kept as `.bak`. Export writes a 512 KB `.sav` an emulator can load.
 * **Autosave:** the game's own save, run automatically every few minutes (default 5)
@@ -71,7 +102,7 @@ code changes (instant text and HP bars) are not carried over.
   menu's SAVE would be allowed, the player is standing still on the overworld with
   nothing else going on, and the game has been saved normally at least once (it never
   overwrites a different game). A small "Autosaved" notice appears in the corner.
-  Settings are in the same Saves window.
+  Its settings and *Save now* are on the same page.
 
 ## Screens
 
@@ -81,8 +112,8 @@ code changes (instant text and HP bars) are not carried over.
 * **Single screen:** the normal libntr layouts (vertical, side by side, large screen).
   Touch the bottom screen area directly.
 
-Turn the second display off with *Config -> Bottom screen on second display* in the
-settings GUI. *Swap Screens* swaps which screen goes on which panel.
+Turn the second display off with *Settings > Display > Bottom screen on the second
+display*. *Swap screens* swaps which screen goes on which panel.
 
 ## Gear (lower-panel companion)
 
@@ -107,8 +138,8 @@ Pokegear and Kanto Gear:
 
 Tap **Full** (or press **L3**) to give the Gear the whole lower panel and **Split** to
 bring the DS touch screen back; battles bring it back by themselves. Turn the Gear off
-with *Config -> Gear companion on the lower screen*. On desktop builds it appears in
-the "Bottom Screen" window (F1 toggles full screen).
+(or change what it reveals) in *Settings > Gear*. On desktop builds it appears in the
+"Bottom Screen" window (F1 toggles full screen).
 
 ## 60 FPS
 
@@ -119,8 +150,8 @@ ledge jumps, sprite animations, water/flower animations and map props at their r
 speed. Battles, menus, text, events and everything else switch back to the original
 30 so they run at their normal speed. Music always keeps its tempo.
 
-*60 FPS in battles and menus too* (settings GUI, *Application -> Config*, or
-`60FpsEverywhere=true`) runs the whole game at 60, which makes everything off the
+*60 FPS in battles and menus too* (*Settings > Gameplay*, or `60FpsEverywhere=true`)
+runs the whole game at 60, which makes everything off the
 overworld twice as fast. Known leftovers at 60 on the overworld: rain/snow particles and
 some small field effects move faster than on the DS, and wandering NPCs pause for
 shorter.
@@ -128,14 +159,15 @@ shorter.
 ## Controls
 
 The built-in controller works out of the box (A, B, X, Y, L, R, Start, Select, D-pad).
-Remap under *Input* in the settings GUI.
+Remap under *Settings > Controls*.
 
-* **Back button / back gesture** or **R3**: open the settings GUI.
+* **Back button / back gesture** or **R3**: open (and close) the settings.
+* **L3**: the Gear on the whole lower panel (or back).
 
 ## Notes
 
-* Default 3D resolution is 5x; change it under *Config -> Internal Resolution*.
-* The libntr window shows where each frame's time goes (game logic, 3D draw calls,
+* Default 3D resolution is 5x; change it under *Settings > Display > 3D resolution*.
+* *Settings > Advanced* shows where each frame's time goes (game logic, 3D draw calls,
   compositing, frame-limiter wait, buffer swap).
 * The Android build is compiled with optimization (`-O2 -fno-strict-aliasing -fwrapv`);
   the PC builds are not.

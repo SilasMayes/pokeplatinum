@@ -1031,7 +1031,7 @@ pokeplatinum_c += files(
     'port/rom_patches.c',
     'port/save_slots.c',
     'port/gui_saves.cpp',
-    'port/gui_games.cpp',
+    'port/gui_settings.cpp',
     'port/gear_data.c',
     'port/gear_ui.cpp',
     'port/sim_config_prj.c',

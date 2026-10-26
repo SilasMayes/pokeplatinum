@@ -2,7 +2,9 @@ package org.pokeplatinum.port;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
+import android.provider.DocumentsContract;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Display;
@@ -28,6 +30,7 @@ public class PlatinumActivity extends SDLActivity {
     private static final int REQUEST_ROM = 0x504C; // "PL"
     private static final int REQUEST_OPEN_DOCUMENT = 0x504D;
     private static final int REQUEST_CREATE_DOCUMENT = 0x504E;
+    private static final int REQUEST_OPEN_FOLDER = 0x504F;
 
     /** File waiting to be written to the document the player is choosing (export). */
     private String pendingExportSource;
@@ -167,6 +170,168 @@ public class PlatinumActivity extends SDLActivity {
         });
     }
 
+    /** Game code (header bytes 0x0C-0x0F) the ROMs copied from a picked folder must have. */
+    private String folderGameCode;
+
+    /**
+     * Called from native code (sim_files.cpp): let the player pick a folder, e.g. one with
+     * a ROM and patches for it. Its patches (.xdelta, .vcdiff) and the ROMs of this game
+     * (gameCode, or every .nds/.srl when empty) are copied, also from one folder level
+     * down, into imports/folder/NAME in the data directory, whose path is reported
+     * through nativeDocumentPicked. Archives and unsupported patch formats it holds are
+     * listed in .skipped there.
+     */
+    @SuppressWarnings("unused")
+    public void pickFolder(String gameCode) {
+        folderGameCode = gameCode != null ? gameCode : "";
+        runOnUiThread(() -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            try {
+                startActivityForResult(intent, REQUEST_OPEN_FOLDER);
+            } catch (ActivityNotFoundException e) {
+                Log.e(TAG, "No folder picker available", e);
+                nativeDocumentPicked(null);
+            }
+        });
+    }
+
+    private static boolean hasExtension(String name, String... extensions) {
+        String lower = name.toLowerCase();
+        for (String extension : extensions) {
+            if (lower.endsWith(extension)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String safeName(String name) {
+        String safe = name.replaceAll("[^A-Za-z0-9._ ()-]", "_").trim();
+        return safe.isEmpty() || safe.startsWith(".") ? "_" + safe : safe;
+    }
+
+    /** The ROM's game code is the expected one (it is read without copying the ROM). */
+    private boolean isThisGame(Uri document) {
+        if (folderGameCode.isEmpty()) {
+            return true;
+        }
+        try (InputStream in = getContentResolver().openInputStream(document)) {
+            byte[] header = new byte[16];
+            int read = 0;
+            while (in != null && read < header.length) {
+                int count = in.read(header, read, header.length - read);
+                if (count <= 0) {
+                    break;
+                }
+                read += count;
+            }
+            return read == header.length
+                && new String(header, 12, 4, java.nio.charset.StandardCharsets.US_ASCII).equals(folderGameCode);
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Copies the patches and ROMs of a picked folder (and of its direct subfolders). */
+    private void copyFolder(Uri tree, String documentId, File target, int depth, StringBuilder skipped)
+            throws IOException {
+        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, documentId);
+        String[] columns = {
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+        };
+        try (Cursor cursor = getContentResolver().query(children, columns, null, null, null)) {
+            if (cursor == null) {
+                throw new IOException("Could not list " + tree);
+            }
+            while (cursor.moveToNext()) {
+                String id = cursor.getString(0);
+                String name = cursor.getString(1);
+                String mime = cursor.getString(2);
+                if (name == null) {
+                    continue;
+                }
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
+                    if (depth == 0) {
+                        copyFolder(tree, id, target, depth + 1, skipped);
+                    }
+                    continue;
+                }
+                Uri document = DocumentsContract.buildDocumentUriUsingTree(tree, id);
+                boolean patch = hasExtension(name, ".xdelta", ".vcdiff", ".delta");
+                boolean rom = hasExtension(name, ".nds", ".srl");
+                if (hasExtension(name, ".zip", ".7z", ".rar", ".bps", ".ips", ".ups")) {
+                    skipped.append(name).append('\n');
+                }
+                if (!patch && !(rom && isThisGame(document))) {
+                    continue;
+                }
+                File out = new File(target, safeName(name));
+                try (InputStream in = getContentResolver().openInputStream(document);
+                     OutputStream os = new FileOutputStream(out)) {
+                    if (in == null) {
+                        throw new IOException("Could not open " + name);
+                    }
+                    copy(in, os);
+                }
+            }
+        }
+    }
+
+    private String treeName(Uri tree) {
+        Uri root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
+        try (Cursor cursor = getContentResolver().query(root,
+                new String[] {DocumentsContract.Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst() && cursor.getString(0) != null) {
+                return safeName(cursor.getString(0));
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "No name for " + tree, e);
+        }
+        return "folder";
+    }
+
+    private void onFolderPicked(int resultCode, Intent data) {
+        Uri tree = (resultCode == RESULT_OK && data != null) ? data.getData() : null;
+        if (tree == null) {
+            nativeDocumentPicked(null);
+            return;
+        }
+        new Thread(() -> {
+            File folders = new File(new File(dataDirectory(), "imports"), "folder");
+            deleteRecursively(folders);
+            File target = new File(folders, treeName(tree));
+            //noinspection ResultOfMethodCallIgnored
+            target.mkdirs();
+            try {
+                StringBuilder skipped = new StringBuilder();
+                copyFolder(tree, DocumentsContract.getTreeDocumentId(tree), target, 0, skipped);
+                if (skipped.length() > 0) {
+                    try (OutputStream os = new FileOutputStream(new File(target, ".skipped"))) {
+                        os.write(skipped.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                }
+                nativeDocumentPicked(target.getAbsolutePath());
+            } catch (IOException | RuntimeException e) {
+                Log.e(TAG, "Folder import failed", e);
+                deleteRecursively(folders);
+                nativeDocumentPicked(null);
+            }
+        }, "FolderImport").start();
+    }
+
+    private static void deleteRecursively(File file) {
+        File[] children = file.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                deleteRecursively(child);
+            }
+        }
+        //noinspection ResultOfMethodCallIgnored
+        file.delete();
+    }
+
     /**
      * Called from native code: let the player choose where to save a copy of sourcePath
      * (a save to export). Reported through nativeDocumentExported.
@@ -254,6 +419,10 @@ public class PlatinumActivity extends SDLActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_OPEN_DOCUMENT) {
             onDocumentPicked(resultCode, data);
+            return;
+        }
+        if (requestCode == REQUEST_OPEN_FOLDER) {
+            onFolderPicked(resultCode, data);
             return;
         }
         if (requestCode == REQUEST_CREATE_DOCUMENT) {

@@ -1314,7 +1314,7 @@ static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
     case MAIN_MENU_STATE_SELECT_OPTION:
 #ifdef SDK_PORT
     {
-        // L/R (or the Saves window in the settings GUI) switch save slots. The menu fades
+        // L/R (or Settings > Saves) switch save slots. The menu fades
         // out like it does for B, the slot is loaded, and the menu comes back for it.
         int slot = SaveSlots_TakeRequestedSwitch();
         if (slot < 0 && JOY_NEW(PAD_BUTTON_L | PAD_BUTTON_R)) {

@@ -12,16 +12,12 @@ static bool sCreateItemOpen = false;
 static bool sConfigPrjOpen = false;
 static bool sCheatsOpen = false;
 static bool sMapJumpOpen = false;
-static bool sSavesOpen = false;
-static bool sGamesOpen = false;
 
 void PrjMain(bool * openState) {
     ImGui::Begin("pokeplatinum", openState);
 
     ImGui::Text("Git rev: %s", SIM_GetProjectGitHash());
 
-    AppButton("Saves", &sSavesOpen, nullptr, SavesMain);
-    AppButton("Games", &sGamesOpen, nullptr, GamesMain);
     AppButton("Cheats", &sCheatsOpen, nullptr, CheatsMain);
     AppButton("Config", &sConfigPrjOpen, nullptr, ConfigPrjMain);
     AppButton("Gen Pokemon", &sCreateMonOpen, CreateMonInit, CreateMonMain);
