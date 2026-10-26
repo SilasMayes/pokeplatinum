@@ -39,7 +39,8 @@ game waits meanwhile). Everything is big enough to tap, scrolls with a finger, a
 with the controller too: D-pad to move, A to choose, B to go back, L/R for the previous /
 next page.
 
-* **Games**: switch games, add one (Renegade Platinum), choose at launch.
+* **Games**: reset to the title screen, switch games, add one (Renegade Platinum),
+  choose at launch.
 * **Saves**: save slots, import / export, autosave, save now.
 * **Gameplay**: 60 FPS options.
 * **Display**: 3D resolution, second display, layout, swap screens, vsync.
@@ -163,6 +164,11 @@ Remap under *Settings > Controls*.
 
 * **Back button / back gesture** or **R3**: open (and close) the settings.
 * **L3**: the Gear on the whole lower panel (or back).
+* **L + R + Start + Select**: soft reset, as on the DS (or *Settings > Games > Reset to
+  the title screen*, tap twice). Nothing is saved: the app restarts into the same game and
+  goes straight to the title screen, so you're back at your last save (resetting for a
+  nature, a shiny...). Autosave never runs in the first minutes after loading a save, but
+  *Save when leaving the app* would save if you switch apps in between.
 
 ## Notes
 

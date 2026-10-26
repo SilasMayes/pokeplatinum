@@ -38,6 +38,9 @@
 #include "port/rom_patches.h"
 #include "port/sim_config_prj.h"
 #include "port/save_slots.h"
+#include "port/soft_reset.h"
+#include "applications/title_screen.h"
+#include <simulator/sim_carts.h>
 #if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
 #include "port/sim_icon.h"
 #endif
@@ -118,6 +121,14 @@ void NitroMain(void)
         switch (OS_GetResetParameter()) {
         case RESET_CLEAN:
             sApplication.args.error = FALSE;
+#ifdef SDK_PORT
+            if (SIM_Carts_StartedBySoftReset()) {
+                // After a soft reset, straight to the title screen (the DS would play the
+                // opening again, which only slows down resetting)
+                EnqueueApplication(FS_OVERLAY_ID(game_opening), &gTitleScreenAppTemplate);
+                break;
+            }
+#endif
             EnqueueApplication(FS_OVERLAY_ID(game_opening), &gOpeningCutsceneAppTemplate);
             break;
 
@@ -134,6 +145,11 @@ void NitroMain(void)
     }
 
     gSystem.showTitleScreenIntro = TRUE;
+#ifdef SDK_PORT
+    if (SIM_Carts_StartedBySoftReset()) {
+        gSystem.showTitleScreenIntro = FALSE;
+    }
+#endif
     gSystem.frameCounter = 0;
 
     InitRNG();
@@ -147,6 +163,12 @@ void NitroMain(void)
         HandleConsoleFold();
         ReadKeypadAndTouchpad();
 
+#ifdef SDK_PORT
+        // The settings screen's "Reset to the title screen"
+        if (SoftReset_TakeRequest() && !gSystem.inhibitReset) {
+            SoftReset(RESET_CLEAN);
+        }
+#endif
         if ((gSystem.heldKeysRaw & RESET_COMBO) == RESET_COMBO && !gSystem.inhibitReset) {
             SoftReset(RESET_CLEAN);
         }

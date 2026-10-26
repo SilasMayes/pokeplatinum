@@ -18,6 +18,7 @@
 #include "port/autosave.h"
 #include "port/save_slots.h"
 #include "port/sim_config_prj.h"
+#include "port/soft_reset.h"
 
 extern "C" {
 extern const unsigned char AtkinsonHyperlegible_Regular_ttf[];
@@ -58,6 +59,28 @@ void GameAdded(BOOL ok, const char *id)
     sGamesMessage = ok ? "Added. Choose it below to switch to it." : "";
 }
 
+Uint64 sResetConfirmUntil = 0;
+
+// A soft reset, as with L+R+Start+Select (tap twice)
+void DrawReset(Uint64 now)
+{
+    const bool allowed = SoftReset_Allowed() != FALSE;
+    const bool confirming = allowed && now < sResetConfirmUntil;
+    const char *help = !allowed  ? "Not right now: the game is saving or linked up."
+        : confirming             ? "Anything since your last save is lost."
+                                 : "A soft reset, like L+R+Start+Select: back to the title screen and your last save, "
+                                   "e.g. to reset for a nature. Nothing is saved.";
+    if (Button(confirming ? "Tap again to reset###reset" : "Reset to the title screen###reset", help, confirming, allowed)) {
+        if (confirming) {
+            sResetConfirmUntil = 0;
+            SoftReset_Request();
+            SIM::Settings::Close();
+        } else {
+            sResetConfirmUntil = now + 4000;
+        }
+    }
+}
+
 void DrawGames()
 {
     SIM_Cart carts[SIM_CARTS_MAX];
@@ -67,6 +90,9 @@ void DrawGames()
     if (now > sConfirmUntil) {
         sConfirmSwitch = -1;
     }
+
+    DrawReset(now);
+    Section("Your games");
 
     for (int i = 0; i < count; i++) {
         ImGui::PushID(i);
@@ -330,7 +356,7 @@ void DrawDebug()
 
 void SIM_Prj_SettingsPages()
 {
-    SIM::Settings::AddPage("Games", "Switch games, add Renegade Platinum", DrawGames, 10);
+    SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
     SIM::Settings::AddPage("Gameplay", "60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
