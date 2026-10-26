@@ -11,9 +11,10 @@ if (build_target != 'win64')
 	    '-Wall',
 	    '-Wextra',
 	    '-Wpedantic',
-	    '-Wno-sign-conversion',
 		'-Werror',
         '-Wconversion',
+	    # After -Wconversion: clang's -Wconversion turns sign-conversion back on
+	    '-Wno-sign-conversion',
 	]
 endif
 

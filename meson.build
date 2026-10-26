@@ -563,8 +563,12 @@ main = executable('main',
 endif
 
 if (build_target == 'android')
-# SDL's Android activity loads libmain.so and calls SDL_main (libntr's main())
-main = shared_library('main',
+# SDL's Android activity loads libmain.so and calls SDL_main (libntr's main()).
+# This is a shared library linked as an "executable" with -shared: most libntr static
+# libraries are declared non-PIC (pic: true only for NX) and meson refuses to put them in
+# a shared_library(). The android target compiles everything with -fPIC anyway (libntr's
+# nitrosdk_args), so the result is a normal .so. build_apk.sh renames main.so to libmain.so.
+main = executable('main',
     sources: [
         pokeplatinum_c,
         c_consts_generators,
@@ -596,13 +600,13 @@ main = shared_library('main',
         libcrypto_ov97,
         libcrypto_static,
         libgds,
-        libdwcenc,
-        libdwcppwlobby,
-        libdwcilobby,
+        # No Wi-Fi Plaza lobby library on Android (same as NX)
     ],
     link_args: [
         link_args,
+        '-shared',
     ],
+    name_suffix: 'so',
     link_depends: main_lcf,
     native: false
 )

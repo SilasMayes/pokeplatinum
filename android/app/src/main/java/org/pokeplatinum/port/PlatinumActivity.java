@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Display;
+import android.view.Window;
+import android.view.WindowManager;
 
 import org.libsdl.app.SDLActivity;
 
@@ -33,8 +36,30 @@ public class PlatinumActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        preferSixtyHertz();
         installBundledFiles();
         secondaryScreen = new SecondaryScreen(this);
+    }
+
+    /**
+     * The game paces itself to 60 fps. On 90/120 Hz panels (the Thor's top screen) ask for
+     * the 60 Hz mode at the current resolution so every frame lands on a vsync.
+     */
+    private void preferSixtyHertz() {
+        //noinspection deprecation
+        Display display = getWindowManager().getDefaultDisplay();
+        Display.Mode current = display.getMode();
+        for (Display.Mode mode : display.getSupportedModes()) {
+            if (Math.abs(mode.getRefreshRate() - 60f) < 1f
+                    && mode.getPhysicalWidth() == current.getPhysicalWidth()
+                    && mode.getPhysicalHeight() == current.getPhysicalHeight()) {
+                Window window = getWindow();
+                WindowManager.LayoutParams params = window.getAttributes();
+                params.preferredDisplayModeId = mode.getModeId();
+                window.setAttributes(params);
+                return;
+            }
+        }
     }
 
     @Override

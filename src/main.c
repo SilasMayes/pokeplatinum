@@ -35,7 +35,7 @@
 
 #ifdef SDK_PORT
 #include "port/sim_config_prj.h"
-#ifdef SDK_BUILD_LINUX
+#if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
 #include "port/sim_icon.h"
 #endif
 #endif
@@ -72,7 +72,8 @@ void NitroMain(void)
 {
 #ifdef SDK_PORT
     SIM_Config_prj_init();
-    #ifdef SDK_BUILD_LINUX
+    // Android has no window icon (the launcher icon comes from the APK)
+    #if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
     SetPokeplatinumAppIcon();
     #endif
 #endif

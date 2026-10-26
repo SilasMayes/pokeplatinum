@@ -7,7 +7,8 @@ libdwcppwlobby_srcs = files(
 )
 
 # TODO: NX build does not work because switch.h required c++>=11
-if(build_target != 'nx')
+# Android: clang rejects the 64-bit pointer truncations gcc accepts with -fpermissive
+if(build_target != 'nx' and build_target != 'android')
 libdwcppwlobby = static_library('dwcppwlobby',
     sources: [libdwcppwlobby_srcs, c_consts_generators],
     c_args: ppwlobby_c_args,

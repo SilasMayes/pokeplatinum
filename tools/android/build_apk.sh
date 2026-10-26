@@ -72,9 +72,12 @@ c_link_args = ['-L' + prefix / 'lib']
 cpp_link_args = ['-L' + prefix / 'lib']
 
 [host_machine]
-system = 'android'
-# Really aarch64. Meson refuses NASM for non-x86 hosts, and the project declares NASM
-# (only DS builds use it). Same workaround as the NX target.
+# Really android/aarch64; the NDK compiler targets that no matter what meson is told.
+# - system: meson forces -fPIE on every target for 'android', which breaks linking the
+#   static libraries into libmain.so. Everything is built with -fPIC instead.
+# - cpu: meson refuses NASM for non-x86 hosts, and the project declares NASM (only DS
+#   builds use it). Same workaround as the NX target.
+system = 'linux'
 cpu_family = 'x86_64'
 cpu = 'x86_64'
 endian = 'little'
@@ -93,7 +96,7 @@ $MESON compile -C "$BUILD/meson" main
 APP=$ROOT/android/app/src/main
 JNI=$APP/jniLibs/$ABI
 mkdir -p "$JNI" "$APP/assets" "$APP/java/org/libsdl"
-"$TOOLCHAIN/bin/llvm-strip" --strip-unneeded -o "$JNI/libmain.so" "$BUILD/meson/libmain.so"
+"$TOOLCHAIN/bin/llvm-strip" --strip-unneeded -o "$JNI/libmain.so" "$BUILD/meson/main.so"
 cp "$PREFIX/lib/libSDL2.so" "$JNI/"
 rm -rf "$APP/java/org/libsdl/app"
 cp -r "$DEPS/SDL/android-project/app/src/main/java/org/libsdl/app" "$APP/java/org/libsdl/"
