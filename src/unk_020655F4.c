@@ -28,7 +28,7 @@
 #include "res/sound/pl_sound_data.naix"
 
 #ifdef SDK_PORT
-#include "port/sim_config_prj.h"
+#include "port/frame_rate.h"
 #endif
 
 typedef struct MoveAnimData {
@@ -81,6 +81,10 @@ typedef struct WalkUnevenMovementData {
     u16 unused;
     s16 duration;
     s16 timer;
+#ifdef SDK_PORT
+    u8 halfRate;   // 60 Hz: each step of the table takes two frames
+    u8 secondHalf;
+#endif
 } WalkUnevenMovementData;
 
 typedef struct UnkStruct_02066824 {
@@ -439,8 +443,7 @@ static BOOL MovementAction_FaceEast_Step0(MapObject *mapObj)
 static void MovementAction_InitWalk(MapObject *mapObj, int dir, fx32 distance, s16 duration, u16 param4)
 {
     #ifdef SDK_PORT
-    SIM_Config_prj_type * myConfig = SIM_Config_prj_GetConfig();
-    if(myConfig->enable60fps && myConfig->enable60fpsSpeedFix) {
+    if (FrameRate_SpeedFixActive()) {
         duration = duration << 1;
         distance = distance >> 1;
     }
@@ -649,6 +652,12 @@ static BOOL MovementAction_RunEast_Step0(MapObject *mapObj)
 
 static void MovementAction_InitWalkOnSpot(MapObject *mapObj, int dir, s16 duration, u16 param3)
 {
+#ifdef SDK_PORT
+    // Turning on the spot (a tap on the D-pad) takes as long as on the DS
+    if (FrameRate_SpeedFixActive()) {
+        duration = duration << 1;
+    }
+#endif
     // the extra 8 bytes are needed only for matching
     WalkOnSpotMovementData *data = MapObject_InitMovementData(mapObj, sizeof(WalkOnSpotMovementData) + 8);
 
@@ -798,6 +807,14 @@ static BOOL MovementAction_WalkOnSpotFasterEast_Step0(MapObject *mapObj)
 
 static void MovementAction_InitJumpCustomSound(MapObject *mapObj, int dir, fx32 distance, s16 duration, u16 param4, s16 param5, u16 param6, u32 seqID)
 {
+#ifdef SDK_PORT
+    // Ledge jumps: twice the frames, half the distance and arc per frame
+    if (FrameRate_SpeedFixActive() && duration <= 63) {
+        duration = duration << 1;
+        distance = distance >> 1;
+        param6 = param6 >> 1;
+    }
+#endif
     JumpMovementData *data = MapObject_InitMovementData(mapObj, sizeof(JumpMovementData));
 
     data->dir = dir;
@@ -1258,6 +1275,9 @@ static void MovementAction_InitWalkUneven(MapObject *mapObj, int dir, s16 durati
     data->dir = dir;
     data->unused = param3;
     data->duration = duration;
+#ifdef SDK_PORT
+    data->halfRate = FrameRate_SpeedFixActive();
+#endif
 
     MapObject_StepDir(mapObj, dir);
     MapObject_TryFaceAndTurn(mapObj, dir);
@@ -1270,7 +1290,28 @@ static BOOL MovementAction_WalkUneven(MapObject *mapObj, const fx32 *stepSizes)
 {
     WalkUnevenMovementData *data = MapObject_GetMovementData(mapObj);
 
+#ifdef SDK_PORT
+    // Biking and ice: at 60 Hz each step of the table is split over two frames
+    fx32 step = stepSizes[data->timer];
+
+    if (data->halfRate) {
+        fx32 firstHalf = step / 2;
+
+        data->secondHalf = !data->secondHalf;
+
+        if (data->secondHalf) {
+            MapObject_MovePosInDir(mapObj, data->dir, firstHalf);
+            MapObject_RecalculateObjectHeight(mapObj);
+            return FALSE;
+        }
+
+        step -= firstHalf;
+    }
+
+    MapObject_MovePosInDir(mapObj, data->dir, step);
+#else
     MapObject_MovePosInDir(mapObj, data->dir, stepSizes[data->timer]);
+#endif
     MapObject_RecalculateObjectHeight(mapObj);
 
     if (++(data->timer) < data->duration) {

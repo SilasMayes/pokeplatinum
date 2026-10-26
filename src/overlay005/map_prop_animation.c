@@ -10,6 +10,10 @@
 #include "narc.h"
 #include "sound_playback.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 #define ANIME_ARCHIVE_ID_NONE -1
 
 static BOOL BicycleSlopeAnimation_Load(BicycleSlopeAnimation *bicycleSlopeAnims, NNSG3dRenderObj *renderObj, MapPropAnimation *animation, const u8 animeArchiveID)
@@ -486,6 +490,29 @@ void MapPropAnimation_GoToLastFrame(MapPropAnimation *animation)
 
 void MapPropAnimation_AdvanceFrame(MapPropAnimation *animation)
 {
+#ifdef SDK_PORT
+    // Map props (windmills, doors...): half a frame per update at 60 Hz. The step can
+    // change between updates, so the end is checked with >= and the start clamped.
+    fx32 step = FrameRate_SpeedFixActive() ? FX32_ONE / 2 : FX32_ONE;
+
+    if (!animation->reversed) {
+        animation->animationObj->frame += step;
+
+        if (animation->animationObj->frame >= NNS_G3dAnmObjGetNumFrame(animation->animationObj)) {
+            animation->animationObj->frame = 0;
+        }
+    } else {
+        if (animation->animationObj->frame <= 0) {
+            animation->animationObj->frame = NNS_G3dAnmObjGetNumFrame(animation->animationObj) - (FX32_ONE);
+        } else {
+            animation->animationObj->frame -= step;
+
+            if (animation->animationObj->frame < 0) {
+                animation->animationObj->frame = 0;
+            }
+        }
+    }
+#else
     if (!animation->reversed) {
         animation->animationObj->frame += (FX32_ONE);
 
@@ -499,6 +526,7 @@ void MapPropAnimation_AdvanceFrame(MapPropAnimation *animation)
             animation->animationObj->frame -= (FX32_ONE);
         }
     }
+#endif
 }
 
 void MapPropAnimation_SetReversed(MapPropAnimation *animation, const BOOL reversed)

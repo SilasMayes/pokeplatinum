@@ -85,6 +85,21 @@ bring the DS touch screen back; battles bring it back by themselves. Turn the Ge
 with *Config -> Gear companion on the lower screen*. On desktop builds it appears in
 the "Bottom Screen" window (F1 toggles full screen).
 
+## 60 FPS
+
+The DS game runs its logic at 30 frames a second. With *60 FPS* on (the default), the
+logic runs at 60 while you are walking around the overworld, which makes walking,
+biking and scrolling smooth; the speed fixes keep walking, running, biking, turning,
+ledge jumps, sprite animations, water/flower animations and map props at their real
+speed. Battles, menus, text, events and everything else switch back to the original
+30 so they run at their normal speed. Music always keeps its tempo.
+
+*60 FPS in battles and menus too* (settings GUI, *Application -> Config*, or
+`60FpsEverywhere=true`) runs the whole game at 60, which makes everything off the
+overworld twice as fast. Known leftovers at 60 on the overworld: rain/snow particles and
+some small field effects move faster than on the DS, and wandering NPCs pause for
+shorter.
+
 ## Controls
 
 The built-in controller works out of the box (A, B, X, Y, L, R, Start, Select, D-pad).

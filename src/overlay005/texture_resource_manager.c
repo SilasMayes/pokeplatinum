@@ -9,6 +9,10 @@
 #include "particle_system.h"
 #include "vram_transfer.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 typedef struct {
     char name[16];
     u8 animationData[18][2];
@@ -121,7 +125,19 @@ void TextureResourceManager_Free(FieldTextureManager *textureManager)
             continue;
         }
 
+#ifdef SDK_PORT
+        // Animated map textures (water, flowers): at 60 Hz each frame is held for twice
+        // as many updates
+        int frameLength = textureSlot->animationData->animationData[textureSlot->currentFrame][1];
+
+        if (FrameRate_SpeedFixActive()) {
+            frameLength = frameLength * 2 + 1;
+        }
+
+        if (frameLength <= textureSlot->frameCounter) {
+#else
         if (textureSlot->animationData->animationData[textureSlot->currentFrame][1] <= textureSlot->frameCounter) {
+#endif
             textureSlot->frameCounter = 0;
             textureSlot->currentFrame++;
 

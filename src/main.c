@@ -34,6 +34,7 @@
 #include "unk_0209A74C.h"
 
 #ifdef SDK_PORT
+#include "port/frame_rate.h"
 #include "port/sim_config_prj.h"
 #include "port/save_slots.h"
 #if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
@@ -135,10 +136,6 @@ void NitroMain(void)
 
     gIgnoreCartridgeForWake = FALSE;
 
-#ifdef SDK_PORT
-    SIM_Config_prj_type * myConfig = SIM_Config_prj_GetConfig();
-#endif
-
     while (TRUE) {
         CheckHeapCanary();
         HandleConsoleFold();
@@ -148,6 +145,10 @@ void NitroMain(void)
             SoftReset(RESET_CLEAN);
         }
 
+#ifdef SDK_PORT
+        FrameRate_Update();
+#endif
+
         if (CommSys_Update()) {
             CheckHeapCanary();
             RunApplication();
@@ -156,7 +157,7 @@ void NitroMain(void)
 
             if (!gSystem.frameCounter
 #ifdef SDK_PORT
-             && myConfig && !(myConfig->enable60fps)
+             && !FrameRate_Is60Hz()
 #endif
             ) {
                 OS_WaitIrq(TRUE, OS_IE_V_BLANK);

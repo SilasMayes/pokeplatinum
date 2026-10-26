@@ -10,6 +10,7 @@ extern "C" {
 typedef struct {
     BOOL enable60fps; // When true, unlock the framerate to 60fps
     BOOL enable60fpsSpeedFix; // When enabled, fixes things in the game that run at double speed due to being at 60fps
+    BOOL enable60fpsEverywhere; // 60 Hz logic everywhere, not only on the overworld (see port/frame_rate.h)
 	BOOL enableAsserts; //Should asserts cause a communication error?
     BOOL breakDebuggerOnGfAssert; // When true, break the debugger when a GF_ASSERT fails
 

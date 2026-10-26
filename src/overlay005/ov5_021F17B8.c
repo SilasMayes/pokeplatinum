@@ -18,7 +18,7 @@
 #include "overworld_anim_manager.h"
 
 #ifdef SDK_PORT
-#include "port/sim_config_prj.h"
+#include "port/frame_rate.h"
 #endif
 
 typedef struct {
@@ -136,8 +136,7 @@ static int ov5_021F184C(OverworldAnimManager *param0, void *param1)
     v1->unk_28.y = FX32_ONE;
     v1->unk_28.z = FX32_ONE;
     #ifdef SDK_PORT
-    SIM_Config_prj_type * myConfig = SIM_Config_prj_GetConfig();
-    if(myConfig->enable60fps && myConfig->enable60fpsSpeedFix) {
+    if (FrameRate_SpeedFixActive()) {
         v1->unk_34 = (FX32_ONE / 64) >> 1;
     } else {
         v1->unk_34 = (FX32_ONE / 64);
@@ -392,8 +391,7 @@ static int ov5_021F1BEC(OverworldAnimManager *param0, void *param1)
     v1->unk_40.y = FX32_ONE;
     v1->unk_40.z = FX32_ONE;
     #ifdef SDK_PORT
-    SIM_Config_prj_type * myConfig = SIM_Config_prj_GetConfig();
-    if(myConfig->enable60fps && myConfig->enable60fpsSpeedFix) {
+    if (FrameRate_SpeedFixActive()) {
         v1->unk_4C = (FX32_ONE / 64) >> 1;
     } else {
         v1->unk_4C = (FX32_ONE / 64);

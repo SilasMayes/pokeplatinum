@@ -22,6 +22,7 @@ void ConfigPrjMain(bool * openState) {
 
     ConfigCheckBox("60 FPS", (bool*)&myConfig->enable60fps, configChanged);
     ConfigCheckBox("60 FPS Speed Fix", (bool*)&myConfig->enable60fpsSpeedFix, configChanged);
+    ConfigCheckBox("60 FPS in battles and menus too (they run 2x fast)", (bool*)&myConfig->enable60fpsEverywhere, configChanged);
     bool gear = myConfig->gearEnabled != FALSE;
     if(ImGui::Checkbox("Gear companion on the lower screen", &gear)) {
         myConfig->gearEnabled = gear ? TRUE : FALSE;

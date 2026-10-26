@@ -5,7 +5,7 @@
 #include "heap.h"
 
 #ifdef SDK_PORT
-#include "port/sim_config_prj.h"
+#include "port/frame_rate.h"
 #endif
 
 enum BillboardAnimStatus {
@@ -813,8 +813,7 @@ static fx32 GetAnimStartFrame(const Billboard *billboard, int animNum)
 static int GetAndAdvanceAnim(Billboard *billboard, fx32 numFrames)
 {
 #ifdef SDK_PORT
-    SIM_Config_prj_type * myConfig = SIM_Config_prj_GetConfig();
-    if(myConfig->enable60fps && myConfig->enable60fpsSpeedFix) {
+    if (FrameRate_SpeedFixActive()) {
         numFrames = numFrames >> 1;
     }
 #endif

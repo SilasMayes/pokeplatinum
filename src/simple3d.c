@@ -12,7 +12,7 @@
 #include "sys_task_manager.h"
 
 #ifdef SDK_PORT
-#include "port/sim_config_prj.h"
+#include "port/frame_rate.h"
 #endif
 
 enum Simple3DAnimationFlags {
@@ -222,8 +222,7 @@ BOOL Simple3D_UpdateAnim(Simple3DAnimation *anim, fx32 frameDelta, BOOL loop)
     fx32 animLength = NNS_G3dAnmObjGetNumFrame(anim->animObj);
 
     #ifdef SDK_PORT
-    SIM_Config_prj_type * myConfig = SIM_Config_prj_GetConfig();
-    if(myConfig->enable60fps && myConfig->enable60fpsSpeedFix) {
+    if (FrameRate_SpeedFixActive()) {
         anim->currFrame += (frameDelta >> 1);
     } else {
         anim->currFrame += frameDelta;
