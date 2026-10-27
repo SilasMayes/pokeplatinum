@@ -4945,6 +4945,34 @@ static BOOL BtlCmd_TrySleepTalk(BattleSystem *battleSys, BattleContext *battleCt
     return FALSE;
 }
 
+#ifdef SDK_PORT
+#include "port/sim_config_prj.h"
+int Gear_LevelCap(void);
+
+// See the hard level cap in BtlCmd_GetExp's state machine: the EXP a Pokemon may still
+// gain before reaching the cap
+static u32 BattleScript_PortCapExp(Pokemon *mon, u32 exp)
+{
+    const SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+    if (config == NULL || !config->hardLevelCap || exp == 0) {
+        return exp;
+    }
+
+    const int cap = Gear_LevelCap();
+    if (cap <= 0 || cap > MAX_POKEMON_LEVEL) {
+        return exp;
+    }
+
+    const u32 current = Pokemon_GetValue(mon, MON_DATA_EXPERIENCE, NULL);
+    const u32 capExp = Pokemon_GetSpeciesBaseExpAt(Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL), cap);
+    if (current >= capExp) {
+        return 0;
+    }
+
+    return exp < capExp - current ? exp : capExp - current;
+}
+#endif
+
 static const u8 sHPPixelsToFlailPower[][2] = {
     { 1, 200 },
     { 5, 150 },
@@ -9771,6 +9799,10 @@ static void BattleScript_GetExpTask(SysTask *task, void *inData)
                 msg.id = BattleStrings_Text_PokemonGainedABoostedExpPoints; // "{0} gained a boosted {1} Exp. Points!"
             }
 
+#ifdef SDK_PORT
+            // Hard level cap: no EXP past the level of the next gym leader's strongest
+            totalExp = BattleScript_PortCapExp(mon, totalExp);
+#endif
             u32 newExp = Pokemon_GetValue(mon, MON_DATA_EXPERIENCE, NULL);
             data->tmpData[GET_EXP_NEW_EXP] = newExp - Pokemon_GetCurrentLevelBaseExp(mon);
             newExp += totalExp;

@@ -43,8 +43,8 @@ next page.
   choose at launch.
 * **Saves**: save slots, import / export, autosave, save now.
 * **Save editor**: see below.
-* **Gameplay**: instant text and HP/EXP bars, field moves without HMs, 60 FPS options,
-  drawing every DS frame.
+* **Gameplay**: instant text and HP/EXP bars, field moves without HMs, the hard level
+  cap, 60 FPS options, drawing every DS frame.
 * **Display**: 3D resolution, second display, layout, swap screens, vsync.
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
@@ -162,7 +162,15 @@ Pokegear and Kanto Gear:
   have met since its last shiny (`x154`), and so does the battle tab for the wild
   Pokemon in front of you. The counters live beside the save slot (`save_slotN.hunt`),
   so soft resets don't take them back; *Reset* (tap twice) starts them over.
-* **Trainer**: money, badges, Pokedex counts, play time and the save slot.
+* **Trainer**: money, badges, Pokedex counts, play time and the save slot. Below, the
+  **level cap** (the level of the next gym leader's strongest Pokemon, the Champion's
+  after 8 badges; Pokemon over it show in yellow here and in Party) and the **bosses**:
+  the rival, Team Galactic, gym leaders, Elite Four and Champion in story order, with
+  the ones before your next badge open. Each shows its team as the battle builds it,
+  from the game's own trainer data, so a ROM hack such as Renegade Platinum shows its
+  own teams: Pokemon, levels, held items and moves, and with *Everything* revealed
+  their abilities, natures and stats. The rival's team follows the starter you chose.
+  *Settings > Gameplay > Hard level cap* (off by default) stops battle EXP at the cap.
 * **Settings**: how much the Gear reveals. *Vanilla* shows only what the game shows,
   *Guide* (default) adds the encounter guide, type matchups, damage estimates and turn
   order but hides species you have never seen, *Everything* also shows hidden values

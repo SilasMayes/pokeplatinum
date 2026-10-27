@@ -301,6 +301,10 @@ void DrawGameplay()
     ConfigToggle("Field moves without HMs", "With the HM in your bag (and its badge), Cut, Fly, Surf, Strength, "
         "Rock Smash, Waterfall, Rock Climb and Defog work without teaching the move: a Pokemon that could learn "
         "it does it. Fly and the others show in that Pokemon's menu.", &config->hmFree);
+    Section("Level cap");
+    ConfigToggle("Hard level cap", "Pokemon get no EXP from battles past the level cap: the level of the next gym "
+        "leader's strongest Pokemon (the Champion's after 8 badges), read from the game's own trainer data. The Gear's "
+        "Trainer tab shows the cap and the bosses' teams.", &config->hardLevelCap);
     Section("Frame rate");
     ConfigToggle("60 FPS", "Smooth walking and scrolling: the overworld runs at 60 frames a second. Music keeps its "
                            "speed.", &config->enable60fps);
@@ -379,7 +383,7 @@ void SIM_Prj_SettingsPages()
     SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
     SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
-    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free field moves, 60 FPS", DrawGameplay, 30);
+    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free field moves, level cap, 60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
     SIM::Settings::AddPage("Cheats", "Walk through walls, no encounters", DrawCheats, 80);
     SIM::Settings::AddPage("Advanced", nullptr, DrawDebug, 90);

@@ -15,6 +15,7 @@ typedef struct {
     BOOL instantText; // see port/speed_up.h
     BOOL instantBars;
     BOOL hmFree; // field moves without HMs: see port/hm_free.h
+    BOOL hardLevelCap; // no battle EXP past the level cap (Gear_LevelCap)
 	BOOL enableAsserts; //Should asserts cause a communication error?
     BOOL breakDebuggerOnGfAssert; // When true, break the debugger when a GF_ASSERT fails
 

@@ -100,6 +100,8 @@ int sSelectedMon = -1;
 GearMon sParty[GEAR_PARTY_MAX];
 int sPartyCount = 0;
 GearTrainer sTrainer;
+int sLevelCap = 0;   // Gear_LevelCap
+int sNextGym = -1;   // Gear_NextGymBoss
 GearArea sArea;
 int sRefreshCountdown = 0;
 int sAreaMapID = -1;
@@ -130,6 +132,12 @@ int Discovery() {
   int discovery = SIM_Config_prj_GetConfig()->gearDiscovery;
   return discovery < GEAR_DISCOVERY_VANILLA || discovery > GEAR_DISCOVERY_EVERYTHING ? GEAR_DISCOVERY_GUIDE
                                                                                       : discovery;
+}
+
+// The level cap shows with the guide on, or when it's enforced
+bool ShowLevelCap() {
+  const SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+  return Discovery() != GEAR_DISCOVERY_VANILLA || (config != nullptr && config->hardLevelCap);
 }
 
 void RefreshBattle() {
@@ -209,6 +217,8 @@ void Refresh() {
     }
   }
   Gear_GetTrainer(&sTrainer);
+  sLevelCap = Gear_LevelCap();
+  sNextGym = Gear_NextGymBoss();
 
   // The encounter table only changes with the map or the time of day
   static int sAreaRefresh = 0;
@@ -444,7 +454,9 @@ void DrawMonCard(int index, ImVec2 size) {
   char level[16];
   snprintf(level, sizeof(level), "Lv %d", mon.level);
   ImVec2 levelSize = TextSize(sRegular, S(16.0f), level);
-  TextAt(draw, sRegular, S(16.0f), ImVec2(pos.x + size.x - pad - levelSize.x, pos.y + pad + S(1.0f)), kTextDim, level);
+  const bool overCap = ShowLevelCap() && sLevelCap > 0 && mon.level > sLevelCap;
+  TextAt(draw, overCap ? sBold : sRegular, S(16.0f), ImVec2(pos.x + size.x - pad - levelSize.x, pos.y + pad + S(1.0f)),
+         overCap ? kWarn : kTextDim, level);
 
   // HP bar and numbers
   float barY = pos.y + pad + S(28.0f);
@@ -1606,6 +1618,198 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
   }
 }
 
+// --- bosses ------------------------------------------------------------------------------
+
+const char *const kStatShort[6] = {"HP", "Atk", "Def", "SpA", "SpD", "Spe"};
+
+// One Pokemon of a boss's team: name, level and item; its moves; with everything revealed
+// its ability, nature and stats
+void DrawBossMon(const GearMon &mon) {
+  const int discovery = Discovery();
+  ImGui::PushFont(sBold, S(15.0f));
+  ImGui::TextUnformatted(Gear_SpeciesName(mon.species));
+  ImGui::PopFont();
+  ImGui::SameLine();
+  ImGui::TextColored(ImColor(kTextDim), "Lv %d", mon.level);
+  if (mon.heldItem != 0) {
+    ImGui::SameLine();
+    ImGui::TextColored(ImColor(kWarn), "@ %s", Gear_ItemName(mon.heldItem));
+  }
+  // Moves, in their type's colour
+  ImGui::Indent(S(10.0f));
+  bool first = true;
+  for (int m = 0; m < 4; m++) {
+    if (mon.moves[m].id == 0) {
+      continue;
+    }
+    const char *name = Gear_MoveName(mon.moves[m].id);
+    if (!first) {
+      ImGui::SameLine(0.0f, S(4.0f));
+      ImGui::TextColored(ImColor(kTextDim), "/");
+      ImGui::SameLine(0.0f, S(4.0f));
+      // Wrap before a move that wouldn't fit
+      if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(name).x) {
+        ImGui::NewLine();
+      }
+    }
+    ImGui::TextColored(ImColor(TypeColor(mon.moves[m].type)), "%s", name);
+    first = false;
+  }
+  if (discovery == GEAR_DISCOVERY_EVERYTHING) {
+    ImGui::TextColored(ImColor(kTextDim), "%s, %s nature", Gear_AbilityName(mon.ability), Gear_NatureName(mon.nature));
+    char stats[96];
+    size_t used = 0;
+    for (int i = 0; i < 6 && used < sizeof(stats); i++) {
+      used += snprintf(stats + used, sizeof(stats) - used, "%s%s %d", i ? "  " : "", kStatShort[i], mon.stats[i]);
+    }
+    ImGui::TextColored(ImColor(kTextDim), "%s", stats);
+  }
+  ImGui::Unindent(S(10.0f));
+}
+
+// A boss: a tappable header (title, name, where, team size and top level) and, open, the
+// team
+void DrawBossCard(int index, bool *open) {
+  const GearBoss *boss = Gear_Boss(index);
+  if (boss == nullptr) {
+    return;
+  }
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const float width = ImGui::GetContentRegionAvail().x;
+  const float height = S(40.0f);
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImGui::PushID(index);
+  if (Tap("boss", ImVec2(width, height))) {
+    *open = !*open;
+  }
+  const bool held = ImGui::IsItemActive() && !sDragging;
+  ImGui::PopID();
+
+  draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), held ? kPanelPressed : kPanel, S(10.0f));
+  const float pad = S(10.0f);
+  char title[64];
+  snprintf(title, sizeof(title), "%s %s", boss->title, boss->name);
+  TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + pad, pos.y + S(4.0f)), boss->beaten ? kTextDim : kText, title);
+  char where[48];
+  snprintf(where, sizeof(where), "%s%s", boss->place, boss->doubles && !strstr(boss->place, "double") ? ", double" : "");
+  TextAt(draw, sRegular, S(13.0f), ImVec2(pos.x + pad, pos.y + S(22.0f)), kTextDim, where);
+
+  char right[32];
+  if (boss->beaten) {
+    snprintf(right, sizeof(right), "Beaten");
+  } else {
+    snprintf(right, sizeof(right), "%d Pokemon, Lv %d", boss->partyCount, boss->aceLevel);
+  }
+  ImVec2 rightSize = TextSize(sRegular, S(14.0f), right);
+  TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + width - pad - rightSize.x - S(16.0f), pos.y + S(12.0f)),
+         boss->beaten ? kGood : kTextDim, right);
+  // Open/closed arrow
+  const ImVec2 arrow(pos.x + width - pad - S(4.0f), pos.y + height * 0.5f);
+  if (*open) {
+    draw->AddTriangleFilled(ImVec2(arrow.x - S(5.0f), arrow.y - S(3.0f)), ImVec2(arrow.x + S(5.0f), arrow.y - S(3.0f)),
+                            ImVec2(arrow.x, arrow.y + S(4.0f)), kTextDim);
+  } else {
+    draw->AddTriangleFilled(ImVec2(arrow.x - S(3.0f), arrow.y - S(5.0f)), ImVec2(arrow.x - S(3.0f), arrow.y + S(5.0f)),
+                            ImVec2(arrow.x + S(4.0f), arrow.y), kTextDim);
+  }
+
+  if (*open) {
+    ImGui::Dummy(ImVec2(0, S(2.0f)));
+    for (int i = 0; i < boss->partyCount; i++) {
+      ImGui::PushID(i);
+      DrawBossMon(boss->party[i]);
+      ImGui::PopID();
+    }
+  }
+  ImGui::Dummy(ImVec2(0, S(4.0f)));
+}
+
+// The level cap, the bosses before the next badge, and all of them by stage
+void DrawBosses() {
+  constexpr int kMaxBosses = 64;
+  const int count = Gear_BossCount() < kMaxBosses ? Gear_BossCount() : kMaxBosses;
+  static bool sOpen[kMaxBosses];
+  static bool sStageOpen[9];
+  static int sOpenedFor = -2; // the next gym the "coming up" cards were opened for
+
+  if (ShowLevelCap() && sNextGym >= 0 && sLevelCap > 0) {
+    const GearBoss *next = Gear_Boss(sNextGym);
+    ImGui::Dummy(ImVec2(0, S(6.0f)));
+    ImGui::PushFont(sBold, S(18.0f));
+    ImGui::Text("Level cap %d", sLevelCap);
+    ImGui::PopFont();
+    if (next != nullptr) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImColor(kTextDim), " %s's %s", next->name, Gear_SpeciesName(next->aceSpecies));
+    }
+    const SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+    if (config != nullptr && config->hardLevelCap) {
+      ImGui::TextColored(ImColor(kTextDim), "Enforced: no EXP past it (Settings > Gameplay)");
+    }
+    for (int i = 0; i < sPartyCount; i++) {
+      if (!sParty[i].isEgg && sParty[i].level > sLevelCap) {
+        ImGui::TextColored(ImColor(kWarn), "%s is over the cap (Lv %d)", MonName(sParty[i]), sParty[i].level);
+      }
+    }
+  }
+
+  if (Discovery() == GEAR_DISCOVERY_VANILLA) {
+    return;
+  }
+
+  // The bosses before the next badge (the gym leader last), opened when that changes
+  const int stage = sTrainer.badgeCount;
+  if (sOpenedFor != sNextGym) {
+    sOpenedFor = sNextGym;
+    for (int i = 0; i < count; i++) {
+      const GearBoss *boss = Gear_Boss(i);
+      sOpen[i] = boss != nullptr && boss->stage == stage && !boss->beaten;
+    }
+  }
+  ImGui::Dummy(ImVec2(0, S(4.0f)));
+  ImGui::PushFont(sBold, S(16.0f));
+  ImGui::TextColored(ImColor(kAccent), "%s", stage >= 8 ? "Coming up: the Pokemon League" : "Coming up before the next badge");
+  ImGui::PopFont();
+  for (int i = 0; i < count; i++) {
+    const GearBoss *boss = Gear_Boss(i);
+    if (boss != nullptr && boss->stage == stage && !boss->beaten) {
+      DrawBossCard(i, &sOpen[i]);
+    }
+  }
+
+  // Everyone, by stage
+  ImGui::Dummy(ImVec2(0, S(4.0f)));
+  ImGui::PushFont(sBold, S(16.0f));
+  ImGui::TextColored(ImColor(kAccent), "All bosses");
+  ImGui::PopFont();
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  for (int st = 0; st <= 8; st++) {
+    char label[48];
+    if (st == 8) {
+      snprintf(label, sizeof(label), "The Pokemon League");
+    } else {
+      snprintf(label, sizeof(label), "Before badge %d", st + 1);
+    }
+    ImGui::PushID(st);
+    const float width = ImGui::GetContentRegionAvail().x;
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    if (Tap("stage", ImVec2(width, S(30.0f)))) {
+      sStageOpen[st] = !sStageOpen[st];
+    }
+    ImGui::PopID();
+    TextAt(draw, sBold, S(15.0f), ImVec2(pos.x + S(4.0f), pos.y + S(6.0f)), st < stage ? kTextDim : kText, label);
+    TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + width - S(16.0f), pos.y + S(5.0f)), kTextDim, sStageOpen[st] ? "-" : "+");
+    if (sStageOpen[st]) {
+      for (int i = 0; i < count; i++) {
+        const GearBoss *boss = Gear_Boss(i);
+        if (boss != nullptr && boss->stage == st) {
+          DrawBossCard(i, &sOpen[i]);
+        }
+      }
+    }
+  }
+}
+
 // --- trainer -----------------------------------------------------------------------------
 
 void DrawTrainer() {
@@ -1659,6 +1863,8 @@ void DrawTrainer() {
   SaveSlots_GetInfo(SaveSlots_Current(), &info);
   ImGui::TextColored(ImColor(kTextDim), "Save slot %d%s%s", SaveSlots_Current() + 1,
                      info.savedAt[0] ? ", last saved " : "", info.savedAt);
+
+  DrawBosses();
 }
 
 // --- settings ----------------------------------------------------------------------------

@@ -15,10 +15,12 @@
 #include "constants/string.h"
 #include "constants/wild_encounters.h"
 #include "generated/abilities.h"
+#include "generated/badges.h"
 #include "generated/battle_boot_states.h"
 #include "generated/item_hold_effects.h"
 #include "generated/move_attributes.h"
 #include "generated/text_banks.h"
+#include "generated/trainers.h"
 #include "generated/time_of_day.h"
 
 #include "battle/battle_context.h"
@@ -45,8 +47,11 @@
 #include "rtc.h"
 #include "save_player.h"
 #include "savedata.h"
+#include "savedata_misc.h"
 #include "string_gf.h"
 #include "system.h"
+#include "system_vars.h"
+#include "trainer_data.h"
 #include "trainer_info.h"
 
 // Implemented in src/battle/battle_lib.c (port only)
@@ -78,6 +83,7 @@ NAME_CACHE(sAbilityNames, TEXT_BANK_ABILITY_NAMES, 128, FALSE);
 NAME_CACHE(sNatureNames, TEXT_BANK_NATURE_NAMES, 32, FALSE);
 NAME_CACHE(sTypeNames, TEXT_BANK_POKEMON_TYPE_NAMES, 32, TRUE);
 NAME_CACHE(sLocationNames, TEXT_BANK_LOCATION_NAMES, 160, FALSE);
+NAME_CACHE(sTrainerNames, TEXT_BANK_NPC_TRAINER_NAMES, 960, FALSE);
 
 static void TitleCase(char *name);
 
@@ -118,6 +124,13 @@ static const char *CachedName(NameCache *cache, int id)
                 continue;
             }
             String *string = MessageLoader_GetNewString(loader, i);
+            if (String_IsTrainerName(string)) {
+                // Trainer names are packed (see String_ConcatTrainerName)
+                String *unpacked = String_Init(64, HEAP_ID_SYSTEM);
+                String_ConcatTrainerName(unpacked, string);
+                String_Free(string);
+                string = unpacked;
+            }
             Gear_TextToAscii(String_GetData(string), String_Length(string), cache->names[i], GEAR_NAME_LEN);
             String_Free(string);
             if (cache->titleCase) {
@@ -248,6 +261,64 @@ BOOL Gear_SpeciesCaught(u16 species)
     return saveData != NULL && Pokedex_HasCaughtSpecies(SaveData_GetPokedex(saveData), species);
 }
 
+// A Pokemon (party or not) for the Gear
+static void FillMon(Pokemon *mon, GearMon *gm)
+{
+    memset(gm, 0, sizeof(*gm));
+
+    gm->isEgg = Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL);
+    gm->species = Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL);
+    gm->personality = Pokemon_GetValue(mon, MON_DATA_PERSONALITY, NULL);
+
+    charcode_t nickname[MON_NAME_LEN + 1];
+    Pokemon_GetValue(mon, MON_DATA_NICKNAME, nickname);
+    MonDisplayName(nickname, Pokemon_GetValue(mon, MON_DATA_HAS_NICKNAME, NULL), gm->species, gm->nickname);
+
+    if (gm->isEgg) {
+        return; // nothing else is meaningful yet
+    }
+
+    gm->shiny = Pokemon_IsShiny(mon);
+    gm->level = Pokemon_GetValue(mon, MON_DATA_LEVEL, NULL);
+    gm->gender = Pokemon_GetGender(mon);
+    gm->hp = Pokemon_GetValue(mon, MON_DATA_HP, NULL);
+    gm->maxHp = Pokemon_GetValue(mon, MON_DATA_MAX_HP, NULL);
+    gm->status = Pokemon_GetValue(mon, MON_DATA_STATUS, NULL);
+    gm->type1 = Pokemon_GetValue(mon, MON_DATA_TYPE_1, NULL);
+    gm->type2 = Pokemon_GetValue(mon, MON_DATA_TYPE_2, NULL);
+    gm->heldItem = Pokemon_GetValue(mon, MON_DATA_HELD_ITEM, NULL);
+    gm->ability = Pokemon_GetValue(mon, MON_DATA_ABILITY, NULL);
+    gm->nature = Pokemon_GetNature(mon);
+    gm->exp = Pokemon_GetValue(mon, MON_DATA_EXPERIENCE, NULL);
+    gm->expLevelStart = Pokemon_GetCurrentLevelBaseExp(mon);
+    gm->expNextLevel = gm->level < 100 ? gm->exp + Pokemon_GetExpToNextLevel(mon) : gm->exp;
+    gm->friendship = Pokemon_GetValue(mon, MON_DATA_FRIENDSHIP, NULL);
+
+    static const enum PokemonDataParam statParams[6] = { MON_DATA_MAX_HP, MON_DATA_ATK, MON_DATA_DEF, MON_DATA_SP_ATK, MON_DATA_SP_DEF, MON_DATA_SPEED };
+    static const enum PokemonDataParam ivParams[6] = { MON_DATA_HP_IV, MON_DATA_ATK_IV, MON_DATA_DEF_IV, MON_DATA_SPATK_IV, MON_DATA_SPDEF_IV, MON_DATA_SPEED_IV };
+    static const enum PokemonDataParam evParams[6] = { MON_DATA_HP_EV, MON_DATA_ATK_EV, MON_DATA_DEF_EV, MON_DATA_SPATK_EV, MON_DATA_SPDEF_EV, MON_DATA_SPEED_EV };
+    for (int s = 0; s < 6; s++) {
+        gm->stats[s] = Pokemon_GetValue(mon, statParams[s], NULL);
+        gm->ivs[s] = Pokemon_GetValue(mon, ivParams[s], NULL);
+        gm->evs[s] = Pokemon_GetValue(mon, evParams[s], NULL);
+    }
+
+    for (int m = 0; m < 4; m++) {
+        GearMove *move = &gm->moves[m];
+        move->id = Pokemon_GetValue(mon, MON_DATA_MOVE1 + m, NULL);
+        if (move->id == 0) {
+            continue;
+        }
+        move->pp = Pokemon_GetValue(mon, MON_DATA_MOVE1_PP + m, NULL);
+        move->maxPp = Pokemon_GetValue(mon, MON_DATA_MOVE1_MAX_PP + m, NULL);
+        const CachedMove *data = MoveData(move->id);
+        move->type = data->type;
+        move->power = data->power;
+        move->accuracy = data->accuracy;
+        move->category = data->category;
+    }
+}
+
 int Gear_GetParty(GearMon out[GEAR_PARTY_MAX])
 {
     SaveData *saveData = RunningSave();
@@ -262,63 +333,162 @@ int Gear_GetParty(GearMon out[GEAR_PARTY_MAX])
     }
 
     for (int i = 0; i < count; i++) {
-        Pokemon *mon = Party_GetPokemonBySlotIndex(party, i);
-        GearMon *gm = &out[i];
-        memset(gm, 0, sizeof(*gm));
-
-        gm->isEgg = Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL);
-        gm->species = Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL);
-        gm->personality = Pokemon_GetValue(mon, MON_DATA_PERSONALITY, NULL);
-
-        charcode_t nickname[MON_NAME_LEN + 1];
-        Pokemon_GetValue(mon, MON_DATA_NICKNAME, nickname);
-        MonDisplayName(nickname, Pokemon_GetValue(mon, MON_DATA_HAS_NICKNAME, NULL), gm->species, gm->nickname);
-
-        if (gm->isEgg) {
-            continue; // nothing else is meaningful yet
-        }
-
-        gm->shiny = Pokemon_IsShiny(mon);
-        gm->level = Pokemon_GetValue(mon, MON_DATA_LEVEL, NULL);
-        gm->gender = Pokemon_GetGender(mon);
-        gm->hp = Pokemon_GetValue(mon, MON_DATA_HP, NULL);
-        gm->maxHp = Pokemon_GetValue(mon, MON_DATA_MAX_HP, NULL);
-        gm->status = Pokemon_GetValue(mon, MON_DATA_STATUS, NULL);
-        gm->type1 = Pokemon_GetValue(mon, MON_DATA_TYPE_1, NULL);
-        gm->type2 = Pokemon_GetValue(mon, MON_DATA_TYPE_2, NULL);
-        gm->heldItem = Pokemon_GetValue(mon, MON_DATA_HELD_ITEM, NULL);
-        gm->ability = Pokemon_GetValue(mon, MON_DATA_ABILITY, NULL);
-        gm->nature = Pokemon_GetNature(mon);
-        gm->exp = Pokemon_GetValue(mon, MON_DATA_EXPERIENCE, NULL);
-        gm->expLevelStart = Pokemon_GetCurrentLevelBaseExp(mon);
-        gm->expNextLevel = gm->level < 100 ? gm->exp + Pokemon_GetExpToNextLevel(mon) : gm->exp;
-        gm->friendship = Pokemon_GetValue(mon, MON_DATA_FRIENDSHIP, NULL);
-
-        static const enum PokemonDataParam statParams[6] = { MON_DATA_MAX_HP, MON_DATA_ATK, MON_DATA_DEF, MON_DATA_SP_ATK, MON_DATA_SP_DEF, MON_DATA_SPEED };
-        static const enum PokemonDataParam ivParams[6] = { MON_DATA_HP_IV, MON_DATA_ATK_IV, MON_DATA_DEF_IV, MON_DATA_SPATK_IV, MON_DATA_SPDEF_IV, MON_DATA_SPEED_IV };
-        static const enum PokemonDataParam evParams[6] = { MON_DATA_HP_EV, MON_DATA_ATK_EV, MON_DATA_DEF_EV, MON_DATA_SPATK_EV, MON_DATA_SPDEF_EV, MON_DATA_SPEED_EV };
-        for (int s = 0; s < 6; s++) {
-            gm->stats[s] = Pokemon_GetValue(mon, statParams[s], NULL);
-            gm->ivs[s] = Pokemon_GetValue(mon, ivParams[s], NULL);
-            gm->evs[s] = Pokemon_GetValue(mon, evParams[s], NULL);
-        }
-
-        for (int m = 0; m < 4; m++) {
-            GearMove *move = &gm->moves[m];
-            move->id = Pokemon_GetValue(mon, MON_DATA_MOVE1 + m, NULL);
-            if (move->id == 0) {
-                continue;
-            }
-            move->pp = Pokemon_GetValue(mon, MON_DATA_MOVE1_PP + m, NULL);
-            move->maxPp = Pokemon_GetValue(mon, MON_DATA_MOVE1_MAX_PP + m, NULL);
-            const CachedMove *data = MoveData(move->id);
-            move->type = data->type;
-            move->power = data->power;
-            move->accuracy = data->accuracy;
-            move->category = data->category;
-        }
+        FillMon(Party_GetPokemonBySlotIndex(party, i), &out[i]);
     }
     return count;
+}
+
+// --- bosses --------------------------------------------------------------------------
+
+// Implemented in src/trainer_data.c (port only)
+void Trainer_PortBuildParty(int trainerID, Party *party, enum HeapID heapID);
+
+typedef struct BossDef {
+    u16 trainerIDs[3]; // by the player's starter (Turtwig, Chimchar, Piplup); one ID for most
+    u8 kind;
+    u8 stage;
+    const char *title;
+    const char *place;
+    s8 badge; // gym leaders: their badge (BADGE_ID_*; Platinum's gym order isn't the badges')
+} BossDef;
+
+#define ONE(id) { id, id, id }
+
+// Platinum's story order; stage: badges in hand when the battle comes
+static const BossDef sBossDefs[] = {
+    { { TRAINER_RIVAL_ROUTE_201_TURTWIG, TRAINER_RIVAL_ROUTE_201_CHIMCHAR, TRAINER_RIVAL_ROUTE_201_PIPLUP }, GEAR_BOSS_RIVAL, 0, "Rival", "Route 201", -1 },
+    { { TRAINER_RIVAL_ROUTE_203_TURTWIG, TRAINER_RIVAL_ROUTE_203_CHIMCHAR, TRAINER_RIVAL_ROUTE_203_PIPLUP }, GEAR_BOSS_RIVAL, 0, "Rival", "Route 203", -1 },
+    { ONE(TRAINER_LEADER_ROARK), GEAR_BOSS_GYM, 0, "Leader", "Oreburgh City", BADGE_ID_COAL },
+    { ONE(TRAINER_COMMANDER_MARS_VALLEY_WINDWORKS), GEAR_BOSS_GALACTIC, 1, "Commander", "Valley Windworks", -1 },
+    { ONE(TRAINER_LEADER_GARDENIA), GEAR_BOSS_GYM, 1, "Leader", "Eterna City", BADGE_ID_FOREST },
+    { ONE(TRAINER_COMMANDER_JUPITER_TEAM_GALACTIC_ETERNA_BUILDING), GEAR_BOSS_GALACTIC, 2, "Commander", "Galactic Eterna Building", -1 },
+    { { TRAINER_RIVAL_ROUTE_209_TURTWIG, TRAINER_RIVAL_ROUTE_209_CHIMCHAR, TRAINER_RIVAL_ROUTE_209_PIPLUP }, GEAR_BOSS_RIVAL, 2, "Rival", "Hearthome City gate", -1 },
+    { ONE(TRAINER_LEADER_FANTINA), GEAR_BOSS_GYM, 2, "Leader", "Hearthome City", BADGE_ID_RELIC },
+    { ONE(TRAINER_GALACTIC_BOSS_CYRUS_CELESTIC_TOWN_RUINS), GEAR_BOSS_GALACTIC, 3, "Boss", "Celestic Town", -1 },
+    { ONE(TRAINER_LEADER_MAYLENE), GEAR_BOSS_GYM, 3, "Leader", "Veilstone City", BADGE_ID_COBBLE },
+    { { TRAINER_RIVAL_PASTORIA_CITY_TURTWIG, TRAINER_RIVAL_PASTORIA_CITY_CHIMCHAR, TRAINER_RIVAL_PASTORIA_CITY_PIPLUP }, GEAR_BOSS_RIVAL, 4, "Rival", "Pastoria City", -1 },
+    { ONE(TRAINER_LEADER_WAKE), GEAR_BOSS_GYM, 4, "Leader", "Pastoria City", BADGE_ID_FEN },
+    { { TRAINER_RIVAL_CANALAVE_CITY_TURTWIG, TRAINER_RIVAL_CANALAVE_CITY_CHIMCHAR, TRAINER_RIVAL_CANALAVE_CITY_PIPLUP }, GEAR_BOSS_RIVAL, 5, "Rival", "Canalave City", -1 },
+    { ONE(TRAINER_LEADER_BYRON), GEAR_BOSS_GYM, 5, "Leader", "Canalave City", BADGE_ID_MINE },
+    { ONE(TRAINER_COMMANDER_SATURN_VALOR_CAVERN), GEAR_BOSS_GALACTIC, 6, "Commander", "Lake Valor", -1 },
+    { ONE(TRAINER_COMMANDER_MARS_LAKE_VERITY), GEAR_BOSS_GALACTIC, 6, "Commander", "Lake Verity", -1 },
+    { ONE(TRAINER_LEADER_CANDICE), GEAR_BOSS_GYM, 6, "Leader", "Snowpoint City", BADGE_ID_ICICLE },
+    { ONE(TRAINER_COMMANDER_SATURN_GALACTIC_HQ), GEAR_BOSS_GALACTIC, 7, "Commander", "Galactic HQ", -1 },
+    { ONE(TRAINER_GALACTIC_BOSS_CYRUS_GALACTIC_HQ), GEAR_BOSS_GALACTIC, 7, "Boss", "Galactic HQ", -1 },
+    { ONE(TRAINER_COMMANDER_MARS_SPEAR_PILLAR), GEAR_BOSS_GALACTIC, 7, "Commander", "Spear Pillar (double)", -1 },
+    { ONE(TRAINER_COMMANDER_JUPITER_SPEAR_PILLAR), GEAR_BOSS_GALACTIC, 7, "Commander", "Spear Pillar (double)", -1 },
+    { ONE(TRAINER_GALACTIC_BOSS_CYRUS_DISTORTION_WORLD), GEAR_BOSS_GALACTIC, 7, "Boss", "Distortion World", -1 },
+    { ONE(TRAINER_LEADER_VOLKNER), GEAR_BOSS_GYM, 7, "Leader", "Sunyshore City", BADGE_ID_BEACON },
+    { { TRAINER_RIVAL_POKEMON_LEAGUE_TURTWIG, TRAINER_RIVAL_POKEMON_LEAGUE_CHIMCHAR, TRAINER_RIVAL_POKEMON_LEAGUE_PIPLUP }, GEAR_BOSS_RIVAL, 8, "Rival", "Pokemon League", -1 },
+    { ONE(TRAINER_ELITE_FOUR_AARON), GEAR_BOSS_ELITE_FOUR, 8, "Elite Four", "Pokemon League", -1 },
+    { ONE(TRAINER_ELITE_FOUR_BERTHA), GEAR_BOSS_ELITE_FOUR, 8, "Elite Four", "Pokemon League", -1 },
+    { ONE(TRAINER_ELITE_FOUR_FLINT), GEAR_BOSS_ELITE_FOUR, 8, "Elite Four", "Pokemon League", -1 },
+    { ONE(TRAINER_ELITE_FOUR_LUCIAN), GEAR_BOSS_ELITE_FOUR, 8, "Elite Four", "Pokemon League", -1 },
+    { ONE(TRAINER_CHAMPION_CYNTHIA), GEAR_BOSS_CHAMPION, 8, "Champion", "Pokemon League", -1 },
+};
+
+static GearBoss sBosses[NELEMS(sBossDefs)];
+static BOOL sBossBuilt[NELEMS(sBossDefs)];
+
+int Gear_BossCount(void)
+{
+    return NELEMS(sBossDefs);
+}
+
+static int StarterIndex(SaveData *saveData)
+{
+    switch (SystemVars_GetPlayerStarter(SaveData_GetVarsFlags(saveData))) {
+    case SPECIES_CHIMCHAR:
+        return 1;
+    case SPECIES_PIPLUP:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+static void BuildBoss(int index, u16 trainerID, SaveData *saveData)
+{
+    const BossDef *def = &sBossDefs[index];
+    GearBoss *boss = &sBosses[index];
+    memset(boss, 0, sizeof(*boss));
+    boss->trainerID = trainerID;
+    boss->kind = def->kind;
+    boss->stage = def->stage;
+    snprintf(boss->title, sizeof(boss->title), "%s", def->title);
+    snprintf(boss->place, sizeof(boss->place), "%s", def->place);
+    if (def->kind == GEAR_BOSS_RIVAL) {
+        Gear_TextToAscii(MiscSaveBlock_RivalName(SaveData_MiscSaveBlockConst(saveData)), TRAINER_NAME_LEN + 1, boss->name,
+            GEAR_NAME_LEN);
+    } else {
+        snprintf(boss->name, sizeof(boss->name), "%s", CachedName(&sTrainerNames, trainerID));
+    }
+    boss->doubles = Trainer_LoadParam(trainerID, TRDATA_BATTLE_TYPE) != BATTLE_TYPE_SINGLES;
+
+    Party *party = Party_New(HEAP_ID_SYSTEM);
+    Trainer_PortBuildParty(trainerID, party, HEAP_ID_SYSTEM);
+    boss->partyCount = Party_GetCurrentCount(party);
+    if (boss->partyCount > GEAR_PARTY_MAX) {
+        boss->partyCount = GEAR_PARTY_MAX;
+    }
+    for (int i = 0; i < boss->partyCount; i++) {
+        FillMon(Party_GetPokemonBySlotIndex(party, i), &boss->party[i]);
+        if (boss->party[i].level >= boss->aceLevel) {
+            boss->aceLevel = boss->party[i].level;
+            boss->aceSpecies = boss->party[i].species;
+        }
+    }
+    Heap_Free(party);
+}
+
+const GearBoss *Gear_Boss(int index)
+{
+    SaveData *saveData = RunningSave();
+    if (saveData == NULL || index < 0 || index >= (int)NELEMS(sBossDefs)) {
+        return NULL;
+    }
+
+    const u16 trainerID = sBossDefs[index].trainerIDs[StarterIndex(saveData)];
+    if (!sBossBuilt[index] || sBosses[index].trainerID != trainerID) {
+        BuildBoss(index, trainerID, saveData);
+        sBossBuilt[index] = TRUE;
+    }
+
+    // Gym leaders are beaten once their badge is in
+    GearBoss *boss = &sBosses[index];
+    boss->beaten = FALSE;
+    if (sBossDefs[index].badge >= 0) {
+        boss->beaten = TrainerInfo_HasBadge(SaveData_GetTrainerInfo(saveData), sBossDefs[index].badge);
+    }
+    return boss;
+}
+
+int Gear_NextGymBoss(void)
+{
+    SaveData *saveData = RunningSave();
+    if (saveData == NULL) {
+        return -1;
+    }
+
+    // The first gym whose badge is missing, in Platinum's order
+    const TrainerInfo *info = SaveData_GetTrainerInfo(saveData);
+    for (int i = 0; i < (int)NELEMS(sBossDefs); i++) {
+        if (sBossDefs[i].badge >= 0 && !TrainerInfo_HasBadge(info, sBossDefs[i].badge)) {
+            return i;
+        }
+    }
+    for (int i = 0; i < (int)NELEMS(sBossDefs); i++) {
+        if (sBossDefs[i].kind == GEAR_BOSS_CHAMPION) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int Gear_LevelCap(void)
+{
+    const GearBoss *boss = Gear_Boss(Gear_NextGymBoss());
+    return boss != NULL ? boss->aceLevel : 0;
 }
 
 void Gear_GetTrainer(GearTrainer *out)

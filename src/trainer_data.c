@@ -314,3 +314,18 @@ static void TrainerData_BuildParty(FieldBattleDTO *dto, int battler, enum HeapID
     Heap_Free(mon);
     LCRNG_SetSeed(oldSeed);
 }
+
+#ifdef SDK_PORT
+// The Gear's boss preview: a trainer's party exactly as a battle against them builds it
+// (same Pokemon, levels, moves, items, natures and abilities)
+void Trainer_PortBuildParty(int trainerID, Party *party, enum HeapID heapID)
+{
+    FieldBattleDTO *dto = Heap_Alloc(heapID, sizeof(FieldBattleDTO));
+    MI_CpuClear8(dto, sizeof(FieldBattleDTO));
+    dto->trainerIDs[BATTLER_ENEMY_1] = trainerID;
+    Trainer_Load(trainerID, &dto->trainer[BATTLER_ENEMY_1]);
+    dto->parties[BATTLER_ENEMY_1] = party;
+    TrainerData_BuildParty(dto, BATTLER_ENEMY_1, heapID);
+    Heap_Free(dto);
+}
+#endif

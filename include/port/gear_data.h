@@ -197,6 +197,40 @@ int Gear_GetParty(GearMon out[GEAR_PARTY_MAX]);
 void Gear_GetTrainer(GearTrainer *out);
 void Gear_GetArea(GearArea *out);
 
+// Bosses: gym leaders, the Elite Four and Champion, the rival and Team Galactic, in story
+// order, with their teams as a battle against them builds them (from the game's own
+// trainer data, so a ROM hack's teams show as they are)
+enum GearBossKind {
+    GEAR_BOSS_GYM = 0,
+    GEAR_BOSS_ELITE_FOUR,
+    GEAR_BOSS_CHAMPION,
+    GEAR_BOSS_RIVAL,
+    GEAR_BOSS_GALACTIC,
+};
+
+typedef struct GearBoss {
+    u16 trainerID;
+    u8 kind;           // GearBossKind
+    u8 stage;          // badges the player has when this battle comes (0-8)
+    BOOL doubles;
+    BOOL beaten;       // known to be beaten (gym leaders: their badge)
+    char title[GEAR_NAME_LEN]; // "Leader", "Elite Four", "Champion", "Rival", "Commander", "Boss"
+    char name[GEAR_NAME_LEN];
+    char place[GEAR_NAME_LEN];
+    int partyCount;
+    GearMon party[GEAR_PARTY_MAX];
+    u8 aceLevel;       // highest level on the team
+    u16 aceSpecies;
+} GearBoss;
+
+int Gear_BossCount(void);
+// NULL outside a game; the rival's team follows the starter you chose
+const GearBoss *Gear_Boss(int index);
+// The next gym leader (the Champion once all 8 badges are in): its index, -1 outside a game
+int Gear_NextGymBoss(void);
+// The level cap: the highest level on that boss's team (0 outside a game)
+int Gear_LevelCap(void);
+
 BOOL Gear_SpeciesSeen(u16 species);
 BOOL Gear_SpeciesCaught(u16 species);
 
