@@ -21,6 +21,10 @@
 #include "math_util.h"
 #include "overworld_anim_manager.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 typedef struct {
     s16 unk_00;
     s8 unk_02;
@@ -638,16 +642,27 @@ void ov5_021EB8B8(MapObject *mapObj)
     v0 = MapObject_GetFacingDir(mapObj);
     v1 = sub_02062A14(mapObj);
 
+#ifdef SDK_PORT
+    // 60 FPS: the animation steps at half speed (billboard.c); its play and pause counts are
+    // in DS frames too
+    const BOOL countTick = !FrameRate_SkipHalfRateTick();
+#else
+    const BOOL countTick = TRUE;
+#endif
     if (v2->unk_02) {
-        v2->unk_02--;
+        if (countTick) {
+            v2->unk_02--;
+        }
         Billboard_AdvanceAnim(v3, 0);
     } else {
         Billboard_AdvanceAnim(v3, (FX32_ONE));
-        v2->unk_01++;
+        if (countTick) {
+            v2->unk_01++;
 
-        if (v2->unk_01 >= 32) {
-            v2->unk_01 = 0;
-            v2->unk_02 = LCRNG_Next() % 16;
+            if (v2->unk_01 >= 32) {
+                v2->unk_01 = 0;
+                v2->unk_02 = LCRNG_Next() % 16;
+            }
         }
     }
 

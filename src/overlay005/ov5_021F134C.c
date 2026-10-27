@@ -15,6 +15,10 @@
 #include "sys_task.h"
 #include "sys_task_manager.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 typedef struct {
     int unk_00;
     int unk_04;
@@ -131,6 +135,13 @@ static void ov5_021F1424(SysTask *param0, void *param1)
 {
     int v0;
     UnkStruct_ov5_021F1388 *v1 = param1;
+
+#ifdef SDK_PORT
+    // 60 FPS: shadows change with the time of day at the DS speed
+    if (FrameRate_SkipHalfRateTick()) {
+        return;
+    }
+#endif
 
     v0 = GetTimeOfDay();
 

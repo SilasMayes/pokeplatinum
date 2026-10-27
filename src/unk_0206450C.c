@@ -17,6 +17,10 @@
 #include "trainer_encounter.h"
 #include "unk_020655F4.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 typedef struct {
     int unk_00;
     const int *unk_04;
@@ -232,6 +236,10 @@ void sub_020645C0(MapObject *mapObj)
     } else {
         switch (v0->unk_00) {
         case 0:
+#ifdef SDK_PORT
+            // 60 FPS: the wait between looks counts DS frames
+            if (!FrameRate_SkipHalfRateTick())
+#endif
             v0->unk_02--;
 
             if (v0->unk_02 <= 0) {
@@ -306,6 +314,10 @@ void sub_02064690(MapObject *mapObj)
         v1->unk_02 = sub_0206530C(Unk_020EEA88, -1);
         v1->unk_00++;
     case 2:
+#ifdef SDK_PORT
+        // 60 FPS: wandering NPCs wait as many DS frames between steps as on the DS
+        if (!FrameRate_SkipHalfRateTick())
+#endif
         v1->unk_02--;
 
         if (v1->unk_02) {

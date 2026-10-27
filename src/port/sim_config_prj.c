@@ -6,6 +6,8 @@
 
 #include "port/sim_config_prj.h"
 
+#include <simulator/sim.h>
+
 #include <simulator/sim_carts.h>
 // Shared by every game (libntr sim_carts.h)
 #define SIM_CONFIG_PRJ_FILE_PATH SIM_SettingsPath("sim_config_prj.ini")
@@ -42,6 +44,9 @@ static int IniHandler(void* user, const char* section, const char* name,
     }
     if(MATCH("General", "HardLevelCap")) {
         config->hardLevelCap = StringToBool(value);
+    }
+    if(MATCH("General", "ClockOffsetMinutes")) {
+        config->clockOffsetMinutes = atoi(value);
     }
     if(MATCH("General", "DrawEveryFrame")) {
         config->drawEveryFrame = StringToBool(value);
@@ -127,6 +132,7 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   aConfig->instantBars = TRUE;
   aConfig->hmFree = TRUE;
   aConfig->hardLevelCap = FALSE;
+  aConfig->clockOffsetMinutes = 0;
   aConfig->enableAsserts = FALSE;
   aConfig->breakDebuggerOnGfAssert = FALSE;
 
@@ -170,6 +176,7 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "InstantBars=%s\n", BoolToString(aConfig->instantBars));
     fprintf(configFile, "HmFreeFieldMoves=%s\n", BoolToString(aConfig->hmFree));
     fprintf(configFile, "HardLevelCap=%s\n", BoolToString(aConfig->hardLevelCap));
+    fprintf(configFile, "ClockOffsetMinutes=%d\n", aConfig->clockOffsetMinutes);
     fprintf(configFile, "EnableAsserts=%s\n", BoolToString(aConfig->enableAsserts));
     fprintf(configFile, "BreakDebuggerOnAssert=%s\n", BoolToString(aConfig->breakDebuggerOnGfAssert));
     fprintf(configFile, "\n");
@@ -207,6 +214,7 @@ void SIM_Config_prj_init() {
     //Config file does not exist. Save config file with defaults
     SIM_Config_prj_SaveConfigFile(&s_SIM_config_prj);
   }
+  SIM_SetClockOffset((long long)s_SIM_config_prj.clockOffsetMinutes * 60);
 }
 
 SIM_Config_prj_type * SIM_Config_prj_GetConfig()

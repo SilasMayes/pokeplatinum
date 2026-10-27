@@ -13,6 +13,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <string>
 
 #include "port/autosave.h"
@@ -248,7 +249,8 @@ void DrawSaves()
     }
     const bool inUse = SaveSlots_IsInUse(slot) != FALSE;
     if (Button("Import a save", inUse ? "This slot's game is running: go back to the main menu to replace it."
-                                      : "A .sav or .dsv from an emulator or another device. The old one is kept as .bak.",
+                                      : "A .sav (melonDS, most emulators) or .dsv (DeSmuME) from an emulator or "
+                                        "another device. The old one is kept as .bak.",
             false, !busy && !inUse)) {
         sImportSlot = slot;
         sSavesStatus.clear();
@@ -256,7 +258,8 @@ void DrawSaves()
     }
     SaveSlotInfo info;
     SaveSlots_GetInfo(slot, &info);
-    if (Button("Export this save", "A 512 KB .sav that emulators can load.", false, !busy && info.hasData)) {
+    if (Button("Export this save", "A 512 KB .sav that melonDS and other emulators load as it is.", false,
+            !busy && info.hasData)) {
         sSavesStatus.clear();
         ExportSlot(slot);
     }
@@ -289,6 +292,38 @@ void DrawSaves()
 
 // --- Gameplay --------------------------------------------------------------------------------
 
+// The game's clock: hours and days ahead of the device's (night, a weekday's event, a
+// time-of-day evolution or encounter without changing the device's clock)
+void DrawClock()
+{
+    SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+    Section("Clock");
+    int total = config->clockOffsetMinutes;
+    int days = total / (24 * 60);
+    int hours = (total - days * 24 * 60) / 60;
+    bool changed = Stepper("Hours ahead", nullptr, &hours, -23, 23, 1, "%+d h");
+    changed |= Stepper("Days ahead", nullptr, &days, 0, 6, 1, days == 1 ? "%d day" : "%d days");
+    if (changed) {
+        config->clockOffsetMinutes = days * 24 * 60 + hours * 60;
+        SIM_SetClockOffset((long long)config->clockOffsetMinutes * 60);
+        SaveConfig();
+    }
+
+    // What the game sees now
+    const time_t now = time(nullptr) + (time_t)SIM_GetClockOffset();
+    const struct tm *local = localtime(&now);
+    if (local != nullptr) {
+        static const char *const kDays[7] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+        const int hour = local->tm_hour;
+        // As TimeOfDayForHour (rtc.c)
+        const char *part = hour < 4 ? "late night" : hour < 10 ? "morning" : hour < 17 ? "day" : hour < 20 ? "evening" : "night";
+        char text[96];
+        snprintf(text, sizeof(text), "Game clock: %s %02d:%02d (%s)%s", kDays[local->tm_wday], hour, local->tm_min, part,
+            config->clockOffsetMinutes == 0 ? ", the device's time" : "");
+        Note(text);
+    }
+}
+
 void DrawGameplay()
 {
     SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
@@ -305,6 +340,7 @@ void DrawGameplay()
     ConfigToggle("Hard level cap", "Pokemon get no EXP from battles past the level cap: the level of the next gym "
         "leader's strongest Pokemon (the Champion's after 8 badges), read from the game's own trainer data. The Gear's "
         "Trainer tab shows the cap and the bosses' teams.", &config->hardLevelCap);
+    DrawClock();
     Section("Frame rate");
     ConfigToggle("60 FPS", "Smooth walking and scrolling: the overworld runs at 60 frames a second. Music keeps its "
                            "speed.", &config->enable60fps);
@@ -383,7 +419,7 @@ void SIM_Prj_SettingsPages()
     SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
     SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
-    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free field moves, level cap, 60 FPS", DrawGameplay, 30);
+    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free moves, level cap, clock, 60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
     SIM::Settings::AddPage("Cheats", "Walk through walls, no encounters", DrawCheats, 80);
     SIM::Settings::AddPage("Advanced", nullptr, DrawDebug, 90);

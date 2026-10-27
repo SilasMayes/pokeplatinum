@@ -77,6 +77,10 @@
 
 #include "res/sound/pl_sound_data.naix"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 #define DISTORTION_WORLD_CAMERA_BASE_ANGLE_X            -10750
 #define DISTORTION_WORLD_CAMERA_BASE_ANGLE_Y            0
 #define DISTORTION_WORLD_CAMERA_BASE_ANGLE_Z            0
@@ -3243,6 +3247,14 @@ static void DistWorldSkyCloudAnimator_AnimTick(OverworldAnimManager *animMan, vo
     DistWorldSkyCloudAnimator *animator = context;
     fx32 expectedRotAngleDelta = sSkyCloudsRotAngleDeltas[animator->userData.system->skyKind][animator->userData.template.group];
 
+#ifdef SDK_PORT
+    // 60 FPS: the clouds turn and change speed at the DS speed (half a turn step per frame,
+    // and their speed eases every other frame)
+    const BOOL halfRate = FrameRate_SpeedFixActive();
+    if (FrameRate_SkipHalfRateTick()) {
+        // leave the speed as it is this frame
+    } else
+#endif
     if (expectedRotAngleDelta < animator->rotAngleDelta) {
         animator->rotAngleDelta -= 0x200;
 
@@ -3258,6 +3270,11 @@ static void DistWorldSkyCloudAnimator_AnimTick(OverworldAnimManager *animMan, vo
     }
 
     fx32 rotAngleDelta = animator->userData.template.baseRotAngleDelta + animator->rotAngleDelta;
+#ifdef SDK_PORT
+    if (halfRate) {
+        rotAngleDelta /= 2;
+    }
+#endif
     ApplyRotationToTargetFx32(&animator->rotAngle, rotAngleDelta);
 
     fx32 rotAngle = animator->rotAngle;
@@ -6855,6 +6872,13 @@ static void DistWorldGiratinaShadowProp_AnimTick(OverworldAnimManager *animMan, 
         // fallthrough
 
     case GIRATINA_SHADOW_PROP_STATE_MOVE: {
+#ifdef SDK_PORT
+        // 60 FPS: it glides by over as many DS frames as on the DS (its animation already
+        // steps at half speed)
+        if (FrameRate_SkipHalfRateTick()) {
+            break;
+        }
+#endif
         VecFx32 pos;
         const VecFx32 *posDelta = &template->posDelta;
 

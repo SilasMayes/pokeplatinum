@@ -15,6 +15,10 @@
 #include "player_avatar.h"
 #include "simple3d.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 typedef struct {
     FieldEffectManager *unk_00;
     Simple3DModel unk_04;
@@ -159,6 +163,10 @@ static void ov5_021F62A0(OverworldAnimManager *param0, void *param1)
         OverworldAnimManager_SetPosition(param0, &v5);
     }
 
+#ifdef SDK_PORT
+    // 60 FPS: the exit arrow blinks every 16 DS frames
+    if (!FrameRate_SkipHalfRateTick())
+#endif
     {
         v1->unk_1C++;
 

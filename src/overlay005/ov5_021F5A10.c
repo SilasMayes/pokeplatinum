@@ -14,6 +14,10 @@
 #include "overworld_anim_manager.h"
 #include "sound_playback.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 void include_unk_ov5_02200B98(void);
 
 typedef struct {
@@ -412,6 +416,10 @@ static void ov5_021F5E58(OverworldAnimManager *param0, void *param1)
     v2.y += (FX32_ONE * 32);
     v2.z += (FX32_ONE * 1);
 
+#ifdef SDK_PORT
+    // 60 FPS: the emote hops and stays for as many DS frames as on the DS
+    if (!FrameRate_SkipHalfRateTick())
+#endif
     switch (v0->unk_00) {
     case 0:
         v0->unk_18.y += v0->unk_24.y;
@@ -475,6 +483,10 @@ static void ov5_021F5F24(OverworldAnimManager *param0, void *param1)
     v2.y += (FX32_ONE * 32);
     v2.z += (FX32_ONE * 1);
 
+#ifdef SDK_PORT
+    // 60 FPS: the emote hops and stays for as many DS frames as on the DS
+    if (!FrameRate_SkipHalfRateTick())
+#endif
     switch (v0->unk_00) {
     case 0:
     case 1:

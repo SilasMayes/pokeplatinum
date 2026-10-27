@@ -135,15 +135,7 @@ static int ov5_021F184C(OverworldAnimManager *param0, void *param1)
     v1->unk_28.x = FX32_ONE;
     v1->unk_28.y = FX32_ONE;
     v1->unk_28.z = FX32_ONE;
-    #ifdef SDK_PORT
-    if (FrameRate_SpeedFixActive()) {
-        v1->unk_34 = (FX32_ONE / 64) >> 1;
-    } else {
-        v1->unk_34 = (FX32_ONE / 64);
-    }
-    #else
     v1->unk_34 = (FX32_ONE / 64);
-    #endif
 
     if (v1->unk_10 == 2) {
         v1->unk_34 = 0;
@@ -181,7 +173,13 @@ static void ov5_021F18E0(OverworldAnimManager *param0, void *param1)
         return;
     }
 
+#ifdef SDK_PORT
+    // 60 FPS: half the wobble per frame keeps the DS speed (checked every frame, as the rate
+    // can change while the reflection is shown)
+    v1->unk_28.x += FrameRate_SpeedFixActive() ? v1->unk_34 / 2 : v1->unk_34;
+#else
     v1->unk_28.x += v1->unk_34;
+#endif
 
     if (v1->unk_28.x >= (FX32_ONE + (FX32_ONE / 8))) {
         v1->unk_28.x = (FX32_ONE + (FX32_ONE / 8));
@@ -390,15 +388,7 @@ static int ov5_021F1BEC(OverworldAnimManager *param0, void *param1)
     v1->unk_40.x = FX32_ONE;
     v1->unk_40.y = FX32_ONE;
     v1->unk_40.z = FX32_ONE;
-    #ifdef SDK_PORT
-    if (FrameRate_SpeedFixActive()) {
-        v1->unk_4C = (FX32_ONE / 64) >> 1;
-    } else {
-        v1->unk_4C = (FX32_ONE / 64);
-    }
-    #else
     v1->unk_4C = (FX32_ONE / 64);
-    #endif
 
     if (v1->unk_00 == 2) {
         v1->unk_4C = 0;
@@ -424,7 +414,11 @@ static void ov5_021F1C60(OverworldAnimManager *param0, void *param1)
 {
     UnkStruct_ov5_021F1AD8 *v0 = param1;
 
+#ifdef SDK_PORT
+    v0->unk_40.x += FrameRate_SpeedFixActive() ? v0->unk_4C / 2 : v0->unk_4C;
+#else
     v0->unk_40.x += v0->unk_4C;
+#endif
 
     if (v0->unk_40.x >= (FX32_ONE + (FX32_ONE / 8))) {
         v0->unk_40.x = (FX32_ONE + (FX32_ONE / 8));

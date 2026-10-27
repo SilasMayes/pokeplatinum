@@ -5374,3 +5374,41 @@ void sub_02078E0C(UnkStruct_02078B40 *param0, Pokemon *mon)
     mon->box.checksum = Pokemon_GetDataChecksum(&mon->box.dataBlocks, sizeof(PokemonDataBlock) * 4);
     Pokemon_EncryptData(&mon->box.dataBlocks, sizeof(PokemonDataBlock) * 4, mon->box.checksum);
 }
+
+#ifdef SDK_PORT
+// .pk4 files: the 136-byte stored format of PKHeX and other tools (personality, flags,
+// checksum, then the four 32-byte blocks decrypted and in A B C D order)
+void BoxPokemon_PortToPk4(const BoxPokemon *boxMon, u8 *out)
+{
+    BoxPokemon copy = *boxMon;
+    BoxPokemon_EnterDecryptionContext(&copy);
+
+    MI_CpuClear8(out, 136);
+    memcpy(out, &copy.personality, 4);
+    memcpy(out + 6, &copy.checksum, 2);
+    for (int i = 0; i < 4; i++) {
+        memcpy(out + 8 + 32 * i, BoxPokemon_GetDataBlock(&copy, copy.personality, i), 32);
+    }
+}
+
+// FALSE when the data is no Pokemon (bad checksum); out is encrypted as a stored Pokemon
+BOOL BoxPokemon_PortFromPk4(const u8 *pk4, BoxPokemon *out)
+{
+    BoxPokemon boxMon;
+    MI_CpuClear8(&boxMon, sizeof(boxMon));
+    memcpy(&boxMon.personality, pk4, 4);
+    u16 checksum;
+    memcpy(&checksum, pk4 + 6, 2);
+    for (int i = 0; i < 4; i++) {
+        memcpy(BoxPokemon_GetDataBlock(&boxMon, boxMon.personality, i), pk4 + 8 + 32 * i, 32);
+    }
+    if (Pokemon_GetDataChecksum(boxMon.dataBlocks, sizeof(PokemonDataBlock) * 4) != checksum) {
+        return FALSE;
+    }
+
+    boxMon.checksum = checksum;
+    Pokemon_EncryptData(boxMon.dataBlocks, sizeof(PokemonDataBlock) * 4, boxMon.checksum);
+    *out = boxMon;
+    return TRUE;
+}
+#endif

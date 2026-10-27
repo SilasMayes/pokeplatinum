@@ -12,6 +12,10 @@
 #include "overworld_anim_manager.h"
 #include "simple3d.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 typedef struct {
     FieldEffectManager *unk_00;
     Simple3DModel unk_04[10];
@@ -253,6 +257,13 @@ static void ov5_021F1FE0(OverworldAnimManager *param0, void *param1)
 static void ov5_021F1FE4(OverworldAnimManager *param0, void *param1)
 {
     UnkStruct_021F1FE4 *v0 = param1;
+
+#ifdef SDK_PORT
+    // 60 FPS: footprints and bike tracks stay and fade for as many DS frames as on the DS
+    if (FrameRate_SkipHalfRateTick()) {
+        return;
+    }
+#endif
 
     switch (v0->unk_00) {
     case 0:

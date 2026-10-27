@@ -124,6 +124,16 @@ typedef struct SaveEdNewMon {
 // the party, 2 for the PC (where: *box, *slot).
 int SaveEd_GiveMon(const SaveEdNewMon *newMon, BOOL toParty, int *box, int *slot);
 
+// --- .pk4 files ---------------------------------------------------------------------------
+
+#define SAVE_ED_PK4_SIZE 136
+
+// The Pokemon as a .pk4 (the 136-byte format of PKHeX and other tools); FALSE: none there
+BOOL SaveEd_ExportPk4(SaveEdRef ref, u8 *out);
+// Adds a .pk4's Pokemon (136 bytes, or 236 with party stats) to the party (when toParty
+// and it has room) or the PC: 1 party, 2 PC (*box, *slot), 0 no room, -1 not a Pokemon
+int SaveEd_ImportPk4(const u8 *data, int size, BOOL toParty, int *box, int *slot);
+
 // --- Bag -------------------------------------------------------------------------------
 
 #define SAVE_ED_POCKETS 8 // POCKET_* order (constants/items.h)

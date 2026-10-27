@@ -591,6 +591,74 @@ int SaveEd_GiveMon(const SaveEdNewMon *newMon, BOOL toParty, int *box, int *slot
     return result;
 }
 
+// --- .pk4 files ---------------------------------------------------------------------------
+
+// Implemented in src/pokemon.c (port only)
+void BoxPokemon_PortToPk4(const BoxPokemon *boxMon, u8 *out);
+BOOL BoxPokemon_PortFromPk4(const u8 *pk4, BoxPokemon *out);
+
+BOOL SaveEd_ExportPk4(SaveEdRef ref, u8 *out)
+{
+    MonAccess access;
+    Pokemon *mon = OpenMon(ref, &access);
+    if (mon == NULL) {
+        return FALSE;
+    }
+    BoxPokemon_PortToPk4(Pokemon_GetBoxPokemon(mon), out);
+    CloseMon(&access, FALSE);
+    return TRUE;
+}
+
+int SaveEd_ImportPk4(const u8 *data, int size, BOOL toParty, int *box, int *slot)
+{
+    SaveData *saveData = EditableSave();
+    if (saveData == NULL) {
+        return 0;
+    }
+    // 136 bytes stored, 236 with the party stats (which are worked out again)
+    if (size != SAVE_ED_PK4_SIZE && size != 236) {
+        return -1;
+    }
+
+    BoxPokemon boxMon;
+    if (!BoxPokemon_PortFromPk4(data, &boxMon)) {
+        return -1;
+    }
+    Pokemon *mon = Pokemon_New(HEAP_ID_SYSTEM);
+    Pokemon_FromBoxPokemon(&boxMon, mon);
+    const u32 species = Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL);
+    if (species < 1 || species > SAVE_ED_MAX_SPECIES) {
+        Heap_Free(mon);
+        return -1;
+    }
+    u32 hp = Pokemon_GetValue(mon, MON_DATA_MAX_HP, NULL);
+    Pokemon_SetValue(mon, MON_DATA_HP, &hp);
+
+    Party *party = SaveData_GetParty(saveData);
+    PCBoxes *pcBoxes = SaveData_GetPCBoxes(saveData);
+    int boxID = USE_CURRENT_BOX, boxSlot = 0;
+    int result = 0;
+    if (toParty && Party_GetCurrentCount(party) < MAX_PARTY_SIZE) {
+        Party_AddPokemon(party, mon);
+        result = 1;
+    } else if (PCBoxes_TryGetNextAvailableSpace(pcBoxes, &boxID, &boxSlot)) {
+        PCBoxes_TryStoreBoxMonAt(pcBoxes, boxID, boxSlot, Pokemon_GetBoxPokemon(mon));
+        SaveData_SetFullSaveRequired();
+        if (box != NULL) {
+            *box = boxID;
+        }
+        if (slot != NULL) {
+            *slot = boxSlot;
+        }
+        result = 2;
+    }
+    if (result != 0 && !Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL)) {
+        SaveData_UpdateCatchRecords(saveData, mon); // the Pokedex
+    }
+    Heap_Free(mon);
+    return result;
+}
+
 // --- Bag -------------------------------------------------------------------------------
 
 const char *SaveEd_PocketName(int pocket)

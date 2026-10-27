@@ -44,7 +44,8 @@ next page.
 * **Saves**: save slots, import / export, autosave, save now.
 * **Save editor**: see below.
 * **Gameplay**: instant text and HP/EXP bars, field moves without HMs, the hard level
-  cap, 60 FPS options, drawing every DS frame.
+  cap, the game clock (hours and days ahead of the device's), 60 FPS options, drawing
+  every DS frame.
 * **Display**: 3D resolution, second display, layout, swap screens, vsync.
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
@@ -195,6 +196,10 @@ walking around (not in a battle or one of the game's menus).
 * **Give a Pokemon**: any species (by Pokedex number or by name) at any level, with a
   nature, shiny or not, perfect IVs, a held item; to the party or the PC. It is caught
   in a Poke Ball with you as its trainer and counts as caught in the Pokedex.
+* **.pk4 files**: *Export as .pk4* on any Pokemon writes the 136-byte file PKHeX and
+  other tools read (named like `0448 - Lucario.pk4`); *Import a .pk4* on the editor's
+  first page adds one (136 bytes, or 236 with party stats) to the party, or the PC when
+  the party is full. The file picker lets you choose where files go and come from.
 * **Bag**: every pocket, how many of each item (0 takes it out), add any item.
 * **Trainer**: money, Battle Points, badges, play time, the National Pokedex.
 * **Legendary events**: the Mystery Gift events Nintendo gave out. *Start* gives the key
@@ -220,9 +225,11 @@ speed. Battles, menus, text, events and everything else switch back to the origi
 
 *60 FPS in battles and menus too* (*Settings > Gameplay*, or `60FpsEverywhere=true`)
 runs the whole game at 60, which makes everything off the
-overworld twice as fast. Known leftovers at 60 on the overworld: rain/snow particles and
-some small field effects move faster than on the DS, and wandering NPCs pause for
-shorter.
+overworld twice as fast. On the overworld everything keeps the DS speed at 60: walking
+and biking, animations, map props, weather (rain, snow, sand, fog), footprints and bike
+tracks, the surf blob's bob, reflections, the "!" emotes, door-mat arrows, shadows
+changing with the time of day, wandering NPCs' pauses, and the Distortion World's
+clouds.
 
 ## Speed
 
@@ -237,6 +244,14 @@ shorter.
 * Battles, menus and other scenes that run at 30 frames a second only draw the frames
   they show (half the drawing). *Settings > Gameplay > Draw every DS frame* draws the
   in-between ones too, should anything flicker.
+
+## Game clock
+
+The game reads the device's clock, as a DS reads its own. *Settings > Gameplay > Clock*
+runs it up to 23 hours ahead or behind and up to 6 days ahead, e.g. for night-time
+encounters and evolutions, or a weekday's event, without touching the device's clock.
+The page shows the day and time the game sees. It is a plain offset: the clock keeps
+running and the game does not see it as changed.
 
 ## Field moves without HMs
 

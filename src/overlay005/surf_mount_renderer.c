@@ -17,6 +17,10 @@
 #include "overworld_anim_manager.h"
 #include "simple3d.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 #define RENDERER_MIN_Y_OFFSET     FX32_ONE
 #define RENDERER_MAX_Y_OFFSET     (FX32_ONE * 4)
 #define RENDERER_INITIAL_Y_OFFSET FX32_ONE
@@ -161,7 +165,12 @@ static void SurfMountRenderer_AnimTick(OverworldAnimManager *animMan, void *cont
     }
 
     renderer->dir = renderer->dirRaw;
+#ifdef SDK_PORT
+    // 60 FPS: half the bob per frame keeps the DS speed (half steps still land on the bounds)
+    renderer->yOffset += FrameRate_SpeedFixActive() ? renderer->yDelta / 2 : renderer->yDelta;
+#else
     renderer->yOffset += renderer->yDelta;
+#endif
 
     if (renderer->yOffset >= RENDERER_MAX_Y_OFFSET) {
         renderer->yOffset = RENDERER_MAX_Y_OFFSET;

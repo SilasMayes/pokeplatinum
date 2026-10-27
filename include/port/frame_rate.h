@@ -35,6 +35,11 @@ void FrameRate_BeforeFirstVBlank(void);
 // This iteration runs at 60 Hz and per-frame steps should be halved
 BOOL FrameRate_SpeedFixActive(void);
 
+// For things that move a set step per frame and are simplest kept at 30 Hz (weather
+// particles, field effects, NPC idle timers): TRUE on every other 60 Hz iteration, when
+// they should skip their update. Always FALSE without the speed fix.
+BOOL FrameRate_SkipHalfRateTick(void);
+
 #ifdef __cplusplus
 }
 #endif

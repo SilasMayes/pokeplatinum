@@ -30,6 +30,10 @@
 #include "sys_task.h"
 #include "sys_task_manager.h"
 
+#ifdef SDK_PORT
+#include "port/frame_rate.h"
+#endif
+
 typedef struct UnkStruct_ov5_021D5EF8_t {
     UnkStruct_ov5_021D6594 *unk_00;
     int unk_04;
@@ -87,9 +91,24 @@ typedef struct {
     u16 unk_BA2;
     u16 unk_BA4;
     u16 unk_BA6;
+#ifdef SDK_PORT
+    void (*portTask)(SysTask *, void *); // the weather's own task (see PortWeatherTask)
+#endif
 } UnkStruct_ov5_021DB4B8;
 
 typedef void (*UnkFuncPtr_ov5_021D69B8)(SysTask *, void *);
+
+#ifdef SDK_PORT
+// 60 FPS: rain, snow, sand and the other weathers move their particles and effects a set
+// step per frame, so on a 60 Hz overworld they run every other frame to keep the DS speed
+static void PortWeatherTask(SysTask *task, void *data)
+{
+    if (FrameRate_SkipHalfRateTick()) {
+        return;
+    }
+    ((UnkStruct_ov5_021DB4B8 *)data)->portTask(task, data);
+}
+#endif
 
 typedef struct {
     u16 unk_00;
@@ -1163,7 +1182,12 @@ static BOOL ov5_021D676C(UnkStruct_ov5_021D6594 *param0, int param1, int param2,
         return 0;
     }
 
+#ifdef SDK_PORT
+    v0->unk_08->portTask = v0->unk_18;
+    v0->unk_08->unk_B88 = SysTask_Start(PortWeatherTask, v0->unk_08, 4);
+#else
     v0->unk_08->unk_B88 = SysTask_Start(v0->unk_18, v0->unk_08, 4);
+#endif
 
     if (v0->unk_08->unk_B88 == NULL) {
         return 0;

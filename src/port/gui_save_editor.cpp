@@ -2,6 +2,7 @@
 // bag, the trainer and the legendary Pokemon's Mystery Gift events. The page shows one view
 // at a time; B (or the back button) goes back one.
 #include <nitro.h>
+#include <simulator/sim_files.h>
 #include <simulator/sim_settings.hpp>
 #include <simulator/sim_ui.hpp>
 
@@ -305,6 +306,74 @@ const BoxesData &Boxes(int box)
     return data;
 }
 
+// --- .pk4 files ---------------------------------------------------------------------------
+
+void OnPk4Picked(const char *path, void *)
+{
+    if (path == nullptr) {
+        return;
+    }
+    std::vector<u8> data;
+    if (FILE *file = fopen(path, "rb")) {
+        u8 buffer[512];
+        size_t got;
+        while ((got = fread(buffer, 1, sizeof(buffer), file)) > 0 && data.size() < 4096) {
+            data.insert(data.end(), buffer, buffer + got);
+        }
+        fclose(file);
+    }
+#ifdef SDK_BUILD_ANDROID
+    remove(path); // the picker's private copy
+#endif
+    int box = 0, slot = 0;
+    const int result = SaveEd_ImportPk4(data.data(), (int)data.size(), TRUE, &box, &slot);
+    if (result == 1) {
+        SetStatus("Added to your party.");
+    } else if (result == 2) {
+        char name[32];
+        SaveEd_BoxName(box, name, sizeof(name));
+        SetStatus(Format("Added to the PC: %s, slot %d.", name, slot + 1));
+    } else if (result == 0) {
+        SetStatus("No room in the party or the PC.", true);
+    } else {
+        SetStatus("That file isn't a Gen 4 Pokemon (.pk4, 136 or 236 bytes).", true);
+    }
+    Changed();
+}
+
+void OnPk4Exported(BOOL saved, void *)
+{
+    if (saved) {
+        SetStatus("Exported.");
+    }
+}
+
+void ExportPk4(SaveEdRef ref, const SaveEdMon &mon)
+{
+    u8 data[SAVE_ED_PK4_SIZE];
+    if (!SaveEd_ExportPk4(ref, data)) {
+        return;
+    }
+    const char *tempPath = "export.pk4";
+    FILE *file = fopen(tempPath, "wb");
+    if (file == nullptr || fwrite(data, 1, sizeof(data), file) != sizeof(data)) {
+        if (file != nullptr) {
+            fclose(file);
+        }
+        SetStatus("The file could not be written.", true);
+        return;
+    }
+    fclose(file);
+    // "0448 - Lucario.pk4", as PKHeX names them
+    std::string name = Format("%04d - %s.pk4", mon.species, mon.isEgg ? "Egg" : mon.name);
+    for (char &c : name) {
+        if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
+            c = '_';
+        }
+    }
+    SIM_Files_SaveCopy("Export .pk4", tempPath, name.c_str(), OnPk4Exported, nullptr);
+}
+
 // --- Home --------------------------------------------------------------------------------
 
 void DrawHome()
@@ -338,6 +407,11 @@ void DrawHome()
     Want(5);
     if (Button("Legendary events", "The Mystery Gift events: Darkrai, Shaymin, Arceus and Rotom's forms")) {
         Go(View::Events, 5);
+    }
+    Want(6);
+    if (Button("Import a .pk4", "A Pokemon file from PKHeX or another save: to the party, or the PC when it's full",
+            false, SIM_Files_IsBusy() == FALSE)) {
+        SIM_Files_PickToOpen("Import a Pokemon (.pk4)", ".pk4,.pkm,.*", OnPk4Picked, nullptr);
     }
 }
 
@@ -584,6 +658,10 @@ void DrawMon()
             Changed();
             SetStatus("Healed.");
         }
+    }
+    Want(41);
+    if (Button("Export as .pk4", "A file PKHeX and other saves can read", false, SIM_Files_IsBusy() == FALSE)) {
+        ExportPk4(sMon, mon);
     }
 }
 
