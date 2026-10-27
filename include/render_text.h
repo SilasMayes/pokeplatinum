@@ -98,4 +98,11 @@ void RenderControlFlags_ZeroSpeedUpBattle(void);
 u8 RenderControlFlags_GetWaitBattle(void);
 void RenderControlFlags_ZeroWaitBattle(void);
 
+#ifdef SDK_PORT
+// Instant text (port/speed_up.h): no delay before the next character or after a pause
+void RenderText_PortSkipDelay(TextPrinter *printer);
+// The printer can go on right away (it isn't waiting for a button)
+BOOL RenderText_PortCanGoOn(TextPrinter *printer);
+#endif
+
 #endif // POKEPLATINUM_RENDER_TEXT_H

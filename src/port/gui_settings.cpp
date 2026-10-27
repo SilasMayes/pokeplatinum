@@ -292,6 +292,12 @@ void DrawSaves()
 void DrawGameplay()
 {
     SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+    Section("Speed");
+    ConfigToggle("Instant text", "Messages appear at once, up to where they wait for a button.",
+        &config->instantText);
+    ConfigToggle("Instant HP and EXP bars", "Battle bars jump to their new value instead of sliding there.",
+        &config->instantBars);
+    Section("Frame rate");
     ConfigToggle("60 FPS", "Smooth walking and scrolling: the overworld runs at 60 frames a second. Music keeps its "
                            "speed.", &config->enable60fps);
     const bool fps60 = config->enable60fps != FALSE;
@@ -367,7 +373,7 @@ void SIM_Prj_SettingsPages()
     SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
     SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
-    SIM::Settings::AddPage("Gameplay", "60 FPS", DrawGameplay, 30);
+    SIM::Settings::AddPage("Gameplay", "Instant text and bars, 60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
     SIM::Settings::AddPage("Cheats", "Walk through walls, no encounters", DrawCheats, 80);
     SIM::Settings::AddPage("Advanced", nullptr, DrawDebug, 90);

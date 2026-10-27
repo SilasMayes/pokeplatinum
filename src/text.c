@@ -1,5 +1,9 @@
 #include "text.h"
 
+#ifdef SDK_PORT
+#include "port/speed_up.h"
+#endif
+
 #include <nitro.h>
 #include <string.h>
 
@@ -225,6 +229,40 @@ u8 Text_AddPrinter(const TextPrinterTemplate *template, u32 renderDelay, TextPri
     return MAX_TEXT_PRINTERS;
 }
 
+#ifdef SDK_PORT
+// Instant text: everything up to the next stop (a button to press, or a callback that
+// plays a sound) is printed at once
+static void RunTextPrinterInstant(TextPrinter *printer)
+{
+    BOOL printed = FALSE;
+    enum RenderResult result = RENDER_UPDATE;
+
+    for (int i = 0; i < 4096; i++) {
+        RenderText_PortSkipDelay(printer);
+        result = TextPrinter_Render(printer);
+
+        if (result == RENDER_PRINT) {
+            printed = TRUE;
+            continue;
+        }
+        if (result == RENDER_FINISH || printer->callbackParam != 0 || !RenderText_PortCanGoOn(printer)) {
+            break;
+        }
+    }
+
+    if (printed) {
+        Window_CopyToVRAM(printer->template.window);
+    }
+    if (result == RENDER_FINISH) {
+        Text_DestroyPrinterTask(printer->id);
+        return;
+    }
+    if (printer->callback != NULL) {
+        printer->callbackResult = (printer->callback)(&printer->template, printer->callbackParam);
+    }
+}
+#endif
+
 static void SysTask_RunTextPrinter(SysTask *task, void *data)
 {
     if (sPausePrinter) {
@@ -236,6 +274,12 @@ static void SysTask_RunTextPrinter(SysTask *task, void *data)
     if (printer->callbackResult == 0) {
         printer->callbackParam = 0;
         Text_GenerateFontHalfRowLookupTable(printer->template.fgColor, printer->template.bgColor, printer->template.shadowColor);
+#ifdef SDK_PORT
+        if (SpeedUp_InstantText()) {
+            RunTextPrinterInstant(printer);
+            return;
+        }
+#endif
 
         switch (TextPrinter_Render(printer)) {
         case RENDER_PRINT:

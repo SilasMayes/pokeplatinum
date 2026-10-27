@@ -459,3 +459,25 @@ void RenderControlFlags_ZeroWaitBattle()
 {
     sRenderControlFlags.waitBattle = FALSE;
 }
+
+#ifdef SDK_PORT
+void RenderText_PortSkipDelay(TextPrinter *printer)
+{
+    if (printer->state == RENDER_STATE_HANDLE_CHAR || printer->state == RENDER_STATE_PAUSE) {
+        printer->delayCounter = 0;
+    }
+}
+
+BOOL RenderText_PortCanGoOn(TextPrinter *printer)
+{
+    switch (printer->state) {
+    case RENDER_STATE_HANDLE_CHAR:
+    case RENDER_STATE_PAUSE:
+    case RENDER_STATE_SCROLL:
+    case RENDER_STATE_DUMMY:
+        return TRUE;
+    default:
+        return FALSE; // waiting for a button
+    }
+}
+#endif

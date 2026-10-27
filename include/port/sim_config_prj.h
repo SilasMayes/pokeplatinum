@@ -12,6 +12,8 @@ typedef struct {
     BOOL enable60fpsSpeedFix; // When enabled, fixes things in the game that run at double speed due to being at 60fps
     BOOL enable60fpsEverywhere; // 60 Hz logic everywhere, not only on the overworld (see port/frame_rate.h)
     BOOL drawEveryFrame; // draw the in-between DS frames of 30 Hz scenes too (see port/frame_rate.h)
+    BOOL instantText; // see port/speed_up.h
+    BOOL instantBars;
 	BOOL enableAsserts; //Should asserts cause a communication error?
     BOOL breakDebuggerOnGfAssert; // When true, break the debugger when a GF_ASSERT fails
 

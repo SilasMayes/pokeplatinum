@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef SDK_PORT
+#include "port/speed_up.h"
+#endif
+
 #include "constants/graphics.h"
 #include "constants/heap.h"
 #include "constants/pokemon.h"
@@ -922,6 +926,12 @@ void HealthBox_CalcHP(HealthBox *healthbox, int damage) // CLEANUP: all calls pa
 s32 Healthbox_DrawHPBar(HealthBox *healthbox)
 {
     s32 result = HealthBox_DrawGauge(healthbox, HEALTHBOX_GAUGE_HP);
+#ifdef SDK_PORT
+    // Instant bars: straight to the end of the animation
+    for (int i = 0; i < 4096 && result != -1 && SpeedUp_InstantBars(); i++) {
+        result = HealthBox_DrawGauge(healthbox, HEALTHBOX_GAUGE_HP);
+    }
+#endif
 
     if (result == -1) {
         healthbox->curHP -= healthbox->damage;
@@ -959,6 +969,11 @@ void HealthBox_CalcExp(HealthBox *healthbox, int expReward)
 s32 Healthbox_DrawExpBar(HealthBox *healthbox)
 {
     s32 result = HealthBox_DrawGauge(healthbox, HEALTHBOX_GAUGE_EXP);
+#ifdef SDK_PORT
+    for (int i = 0; i < 4096 && result != -1 && SpeedUp_InstantBars(); i++) {
+        result = HealthBox_DrawGauge(healthbox, HEALTHBOX_GAUGE_EXP);
+    }
+#endif
 
     if (result == -1) {
         healthbox->curExp -= healthbox->expReward;
