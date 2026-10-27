@@ -28,6 +28,7 @@ typedef struct {
     // Gear section (companion UI on the lower display)
     BOOL gearEnabled;
     int gearDiscovery; // GEAR_DISCOVERY_*: how much the Gear reveals
+    BOOL gearBattleControls; // in battles the Gear takes the whole lower screen and has the battle menu
 } SIM_Config_prj_type;
 
 enum {

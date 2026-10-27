@@ -279,4 +279,25 @@ void BattleSubscreen_SetSuppressActivationSFX(BattleSubscreen *btlSubscreen, int
 void BattleSubscreen_ShowStopRecordingMessage(BattleSubscreen *btlSubscreen, int flag);
 u8 BattleSubscreen_IsWaitingForPartner(BattleSubscreen *btlSubscreen);
 
+#ifdef SDK_PORT
+// Port: the Gear (src/port/gear_data.c) shows the battle menu on the lower screen and
+// presses its buttons. Buttons are the menu's touch areas, in the order of its
+// sBattleMenuConfigs touch rects.
+typedef struct BattleSubscreenPortMenu {
+    int menuConfig;      // sBattleMenuConfigs index (0: no menu)
+    BOOL polled;         // the battle asked for input in the last few frames
+    BOOL ready;          // ... and isn't sliding a panel in
+    int cursorButton;    // the button under the game's own cursor, -1 if hidden
+    int buttonCount;
+    ActiveMenuData data; // the active menu's data (actions, moves, targets...)
+    BOOL hasCancelButton;
+    BOOL targetOk[4];    // target buttons 0-3 that can be chosen
+    int targetBattler[4]; // the battler of target buttons 0-3
+} BattleSubscreenPortMenu;
+
+BOOL BattleSubscreen_PortGetMenu(BattleSubscreenPortMenu *out);
+// Pressed at the battle's next read of the menu (dropped if the menu changes first)
+void BattleSubscreen_PortPress(int button);
+#endif
+
 #endif // POKEPLATINUM_BATTLE_BATTLE_SUBSCREEN_H

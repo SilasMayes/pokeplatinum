@@ -103,14 +103,23 @@ int sRefreshCountdown = 0;
 int sAreaMapID = -1;
 int sAreaTimeOfDay = -1;
 
-// Battles: the Battle app comes up by itself (with the DS screen, for the battle menu)
-// and the Gear goes back to what it showed before when the battle ends
+// Battles: the Battle app comes up by itself and the Gear goes back to what it showed
+// before when the battle ends. With battle controls on (the default) the Gear takes the
+// whole lower screen and has the battle menu itself; the DS screen comes back for the
+// bag, the party and the like. Otherwise the DS screen shows the game's battle menu.
 GearBattle sBattle;
 int sBattleRefreshCountdown = 0;
 bool sInBattle = false;
 App sAppBeforeBattle = APP_PARTY;
 bool sFullScreenBeforeBattle = false;
 int sLastChoosing = -1;
+GearBattleMenu sMenu;            // read every frame in battle
+int sLastMenuKind = GEAR_MENU_NONE;
+bool sBattleLayoutManual = false; // the player chose Full/Split during this battle
+
+bool BattleControls() {
+  return SIM_Config_prj_GetConfig()->gearBattleControls != FALSE;
+}
 
 // A press that turned into a scroll drag must not also click what it ended on
 bool sDragging = false;
@@ -133,24 +142,45 @@ void RefreshBattle() {
     sAppBeforeBattle = sApp;
     sApp = APP_BATTLE;
     sLastChoosing = -1;
+    sBattleLayoutManual = false;
     sFullScreenBeforeBattle = SIM_Companion_IsFullScreen() != FALSE;
-    SIM_Companion_SetFullScreen(FALSE);
+    SIM_Companion_SetFullScreen(BattleControls() ? TRUE : FALSE);
   } else if (!sBattle.active && sInBattle) {
     sInBattle = false;
     if (sApp == APP_BATTLE) {
       sApp = sAppBeforeBattle == APP_BATTLE ? APP_PARTY : sAppBeforeBattle;
     }
-    if (sFullScreenBeforeBattle) {
-      SIM_Companion_SetFullScreen(TRUE);
-    }
+    SIM_Companion_SetFullScreen(sFullScreenBeforeBattle ? TRUE : FALSE);
   }
   if (sBattle.choosing >= 0) {
     sLastChoosing = sBattle.choosing;
   }
 }
 
+// Every frame in battle: the battle menu, and room for the DS screen when it's needed
+void RefreshBattleMenu() {
+  if (!sInBattle || !BattleControls()) {
+    sMenu = {};
+    sLastMenuKind = GEAR_MENU_NONE;
+    return;
+  }
+  Gear_GetBattleMenu(&sMenu);
+  if (sMenu.kind != GEAR_MENU_NONE && sLastMenuKind == GEAR_MENU_NONE) {
+    sApp = APP_BATTLE; // something to choose: back to the battle app
+  }
+  sLastMenuKind = sMenu.kind;
+
+  if (!sBattleLayoutManual) {
+    const BOOL wantFull = Gear_BattleNeedsDsScreen() ? FALSE : TRUE;
+    if (SIM_Companion_IsFullScreen() != wantFull) {
+      SIM_Companion_SetFullScreen(wantFull);
+    }
+  }
+}
+
 void Refresh() {
   RefreshBattle();
+  RefreshBattleMenu();
   if (--sRefreshCountdown > 0) {
     return;
   }
@@ -339,6 +369,9 @@ void DrawHeader(const SIM_CompanionFrame *frame) {
   ImGui::SetCursorScreenPos(ImVec2(toggleX, origin.y));
   if (Tap("toggle", ImVec2(toggleWidth, height))) {
     SIM_Companion_ToggleFullScreen();
+    if (sInBattle) {
+      sBattleLayoutManual = true; // until the battle ends
+    }
   }
   draw->AddRect(ImVec2(toggleX, origin.y + S(4.0f)), ImVec2(toggleX + toggleWidth, origin.y + height - S(4.0f)), kAccent,
                 S(16.0f), 0, S(2.0f));
@@ -803,7 +836,7 @@ void DrawOpponentCard(int battler, const char *side, ImVec2 size) {
   if (side != nullptr) {
     x += Badge(draw, ImVec2(x, line1 + S(1.0f)), side, kAccent, S(13.0f)) + S(6.0f);
   }
-  if (!sBattle.trainer && Gear_SpeciesCaught(b.species)) {
+  if (b.enemy && !sBattle.trainer && Gear_SpeciesCaught(b.species)) {
     PokeBall(draw, ImVec2(x + S(7.0f), line1 + S(9.0f)), S(7.0f));
     x += S(20.0f);
   }
@@ -818,7 +851,7 @@ void DrawOpponentCard(int battler, const char *side, ImVec2 size) {
   const int percent = b.maxHp ? (b.hp * 100 + b.maxHp - 1) / b.maxHp : 0;
   if (fainted) {
     snprintf(hp, sizeof(hp), "Fainted");
-  } else if (discovery == GEAR_DISCOVERY_EVERYTHING) {
+  } else if (!b.enemy || discovery == GEAR_DISCOVERY_EVERYTHING) {
     snprintf(hp, sizeof(hp), "%d/%d", b.hp, b.maxHp);
   } else {
     snprintf(hp, sizeof(hp), "%d%%", percent);
@@ -956,6 +989,182 @@ void DrawBattlerDetails(const GearBattler &b, bool showMoves) {
   ImGui::PopID();
 }
 
+// --- battle menu (the DS bottom screen's, on the Gear) ----------------------------------
+
+constexpr ImU32 kFightColor = IM_COL32(206, 68, 62, 255);
+constexpr ImU32 kBagColor = IM_COL32(214, 150, 46, 255);
+constexpr ImU32 kPokemonColor = IM_COL32(62, 158, 86, 255);
+constexpr ImU32 kRunColor = IM_COL32(64, 112, 200, 255);
+constexpr ImU32 kCursorColor = IM_COL32(255, 214, 102, 255);
+
+ImU32 Darker(ImU32 color) {
+  ImVec4 c = ImColor(color).Value;
+  return ImColor(c.x * 0.75f, c.y * 0.75f, c.z * 0.75f, c.w);
+}
+
+// Outline where the game's own cursor (D-pad) is
+void CursorOutline(ImDrawList *draw, ImVec2 pos, ImVec2 size, int button) {
+  if (sMenu.cursor == button) {
+    draw->AddRect(ImVec2(pos.x - S(2.0f), pos.y - S(2.0f)), ImVec2(pos.x + size.x + S(2.0f), pos.y + size.y + S(2.0f)),
+                  kCursorColor, S(12.0f), 0, S(3.0f));
+  }
+}
+
+// A filled button of the battle menu
+void MenuButton(int button, const char *label, const char *sub, ImU32 color, ImVec2 size, bool enabled = true) {
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImGui::PushID(button);
+  const bool pressed = Tap("menu", size);
+  ImGui::PopID();
+  const bool held = ImGui::IsItemActive() && !sDragging;
+  const ImU32 fill = !enabled ? kPanel : (held ? Darker(color) : color);
+  draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), fill, S(12.0f));
+
+  const ImU32 textColor = enabled ? IM_COL32(255, 255, 255, 255) : kTextDim;
+  ImVec2 labelSize = TextSize(sBold, S(19.0f), label);
+  float textHeight = labelSize.y;
+  ImVec2 subSize(0, 0);
+  if (sub != nullptr && sub[0] != '\0') {
+    subSize = TextSize(sRegular, S(13.0f), sub);
+    textHeight += S(2.0f) + subSize.y;
+  }
+  float y = pos.y + (size.y - textHeight) * 0.5f;
+  TextAt(draw, sBold, S(19.0f), ImVec2(pos.x + (size.x - labelSize.x) * 0.5f, y), textColor, label);
+  if (subSize.y > 0) {
+    TextAt(draw, sRegular, S(13.0f), ImVec2(pos.x + (size.x - subSize.x) * 0.5f, y + labelSize.y + S(2.0f)),
+           enabled ? IM_COL32(255, 255, 255, 200) : kTextDim, sub);
+  }
+  CursorOutline(draw, pos, size, button);
+  if (pressed && enabled) {
+    Gear_PressBattleButton(button);
+  }
+}
+
+// Draws over the last item: a pressed look and the game's cursor
+void PressOverlay(ImVec2 pos, ImVec2 size, int button, bool enabled) {
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  if (!enabled) {
+    draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(24, 29, 38, 150), S(10.0f));
+  }
+  CursorOutline(draw, pos, size, button);
+}
+
+// A tappable move of the move menu, with its matchups
+void MoveMenuButton(int button, const GearMove &move, const int *opponents, int opponentCount, ImVec2 size) {
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImGui::PushID(button);
+  const bool pressed = Tap("move", size);
+  ImGui::PopID();
+  const bool held = ImGui::IsItemActive() && !sDragging;
+  ImGui::SetCursorScreenPos(pos);
+  DrawBattleMove(move, opponents, opponentCount, size);
+  if (held) {
+    ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(255, 255, 255, 30),
+                                              S(10.0f));
+  }
+  PressOverlay(pos, size, button, move.id != 0);
+  if (pressed && move.id != 0) {
+    Gear_PressBattleButton(button);
+  }
+}
+
+// A tappable target of the target menu
+void TargetButton(int button, ImVec2 size) {
+  const int battler = sMenu.targetBattler[button];
+  const bool present = battler >= 0 && battler < GEAR_BATTLERS_MAX && sBattle.battlers[battler].present;
+  const bool enabled = present && sMenu.targetOk[button];
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImGui::PushID(button);
+  const bool pressed = Tap("target", size);
+  ImGui::PopID();
+  ImGui::SetCursorScreenPos(pos);
+  if (present) {
+    DrawOpponentCard(battler, sBattle.battlers[battler].enemy ? "Foe" : "Ally", size);
+  } else {
+    ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), kPanel, S(10.0f));
+    ImGui::Dummy(size);
+  }
+  if (ImGui::IsItemActive() && enabled) {
+    ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(255, 255, 255, 30),
+                                              S(10.0f));
+  }
+  PressOverlay(pos, size, button, enabled);
+  if (pressed && enabled) {
+    Gear_PressBattleButton(button);
+  }
+}
+
+// The battle menu the game is showing, as Gear buttons. Returns FALSE when there's none.
+bool DrawBattleControls(const int *opponents, int opponentCount) {
+  const GearBattleMenu &m = sMenu;
+  if (m.kind == GEAR_MENU_NONE) {
+    return false;
+  }
+  const float width = ImGui::GetContentRegionAvail().x;
+  const float gap = S(6.0f);
+  ImGui::Dummy(ImVec2(0, S(2.0f)));
+
+  switch (m.kind) {
+  case GEAR_MENU_ACTION: {
+    const char *labels[4] = {"Fight", "Bag", "Pokemon", m.cancel ? "Cancel" : "Run"};
+    if (m.safari) {
+      labels[0] = "Ball";
+      labels[1] = "Bait";
+      labels[2] = "Mud";
+    }
+    MenuButton(0, labels[0], nullptr, kFightColor, ImVec2(width, S(78.0f)));
+    const float third = (width - gap * 2) / 3.0f;
+    MenuButton(1, labels[1], nullptr, kBagColor, ImVec2(third, S(58.0f)));
+    ImGui::SameLine(0.0f, gap);
+    MenuButton(3, labels[3], nullptr, m.cancel ? IM_COL32(110, 118, 134, 255) : kRunColor, ImVec2(third, S(58.0f)));
+    ImGui::SameLine(0.0f, gap);
+    MenuButton(2, labels[2], nullptr, kPokemonColor, ImVec2(third, S(58.0f)));
+    break;
+  }
+  case GEAR_MENU_FIRST:
+    MenuButton(0, "Fight", nullptr, kFightColor, ImVec2(width, S(78.0f)));
+    break;
+  case GEAR_MENU_PAL_PARK:
+    MenuButton(0, "Park Ball", nullptr, kFightColor, ImVec2(width, S(78.0f)));
+    MenuButton(1, "Run", nullptr, kRunColor, ImVec2(width, S(52.0f)));
+    break;
+  case GEAR_MENU_MOVES: {
+    const float half = (width - gap) * 0.5f;
+    for (int i = 0; i < 4; i++) {
+      if (i % 2 != 0) {
+        ImGui::SameLine(0.0f, gap);
+      }
+      MoveMenuButton(i + 1, m.moves[i], opponents, opponentCount, ImVec2(half, S(60.0f)));
+    }
+    MenuButton(0, "Cancel", nullptr, IM_COL32(110, 118, 134, 255), ImVec2(width, S(44.0f)));
+    break;
+  }
+  case GEAR_MENU_TARGETS: {
+    const float half = (width - gap) * 0.5f;
+    // As on the DS screen: the opponents above, your side below
+    TargetButton(3, ImVec2(half, S(52.0f)));
+    ImGui::SameLine(0.0f, gap);
+    TargetButton(1, ImVec2(half, S(52.0f)));
+    TargetButton(0, ImVec2(half, S(52.0f)));
+    ImGui::SameLine(0.0f, gap);
+    TargetButton(2, ImVec2(half, S(52.0f)));
+    MenuButton(4, "Cancel", nullptr, IM_COL32(110, 118, 134, 255), ImVec2(width, S(44.0f)));
+    break;
+  }
+  case GEAR_MENU_YES_NO:
+    MenuButton(0, m.yes, nullptr, kPokemonColor, ImVec2(width, S(62.0f)));
+    MenuButton(1, m.no, nullptr, IM_COL32(110, 118, 134, 255), ImVec2(width, S(62.0f)));
+    break;
+  case GEAR_MENU_STOP:
+    MenuButton(0, "Stop watching", nullptr, kRunColor, ImVec2(width, S(56.0f)));
+    break;
+  default:
+    return false;
+  }
+  return true;
+}
+
 void DrawBattle(const SIM_CompanionFrame *frame) {
   (void)frame;
   const float width = ImGui::GetContentRegionAvail().x;
@@ -978,9 +1187,36 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
     DrawOpponentCard(opponents[i], opponentCount > 1 ? sides[i] : nullptr, ImVec2(cardWidth, S(46.0f)));
   }
 
-  // The active Pokemon's moves, two by two
-  const int active = ActiveBattler();
-  if (active >= 0) {
+  // With the battle menu on the Gear: your side too, then the menu
+  const bool controls = BattleControls();
+  const int active = sMenu.kind != GEAR_MENU_NONE && sMenu.battler >= 0 && sMenu.battler < GEAR_BATTLERS_MAX
+                         ? sMenu.battler
+                         : ActiveBattler();
+  if (controls) {
+    int mine[2];
+    int mineCount = 0;
+    for (int b = 0; b < GEAR_BATTLERS_MAX && mineCount < 2; b += 2) {
+      if (sBattle.battlers[b].present && !sBattle.battlers[b].enemy) {
+        mine[mineCount++] = b;
+      }
+    }
+    const float myWidth = mineCount > 0 ? (width - gap * (mineCount - 1)) / mineCount : width;
+    for (int i = 0; i < mineCount; i++) {
+      if (i > 0) {
+        ImGui::SameLine(0.0f, gap);
+      }
+      ImVec2 cardPos = ImGui::GetCursorScreenPos();
+      DrawOpponentCard(mine[i], nullptr, ImVec2(myWidth, S(46.0f)));
+      if (mineCount > 1 && mine[i] == active && sMenu.kind != GEAR_MENU_NONE) {
+        // Whose command it is
+        ImGui::GetWindowDrawList()->AddRect(cardPos, ImVec2(cardPos.x + myWidth, cardPos.y + S(46.0f)), kAccent, S(10.0f),
+                                            0, S(2.5f));
+      }
+    }
+  }
+
+  if (!(controls && DrawBattleControls(opponents, opponentCount)) && active >= 0) {
+    // The active Pokemon's moves, two by two
     const GearBattler &mine = sBattle.battlers[active];
     const float moveWidth = (width - gap) * 0.5f;
     for (int m = 0; m < 4; m++) {
@@ -991,11 +1227,13 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
       DrawBattleMove(mine.moves[m], opponents, opponentCount, ImVec2(moveWidth, S(44.0f)));
       ImGui::PopID();
     }
+  }
 
+  if (active >= 0) {
     // Below the fold in the split view: the active Pokemon itself
     ImGui::Dummy(ImVec2(0, S(4.0f)));
     SectionLabel("Your Pokemon");
-    DrawBattlerDetails(mine, false);
+    DrawBattlerDetails(sBattle.battlers[active], false);
   }
 
   // What the opponents are up to
@@ -1147,6 +1385,14 @@ void DrawSettings() {
     }
   }
   ImGui::TextDisabled("Turn it back on in Settings > Gear (back button or R3).");
+
+  bool controls = config->gearBattleControls != FALSE;
+  if (ImGui::Checkbox("Battle menu on the Gear", &controls) && !sDragging) {
+    config->gearBattleControls = controls ? TRUE : FALSE;
+    changed = true;
+  }
+  ImGui::TextWrapped("In battles the Gear takes the whole lower screen with Fight, Bag, Pokemon, Run and your moves "
+                     "(with their matchups). The DS screen comes back for the bag and the party.");
 
   if (changed) {
     SIM_Config_prj_SaveConfigFile(config);

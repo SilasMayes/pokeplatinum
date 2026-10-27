@@ -22,6 +22,7 @@
 #include "battle/battle_context.h"
 #include "battle/battle_display.h"
 #include "battle/battle_mon.h"
+#include "battle/battle_subscreen.h"
 #include "battle/battle_system.h"
 #include "field/field_system.h"
 #include "overlay006/wild_encounters.h"
@@ -41,6 +42,7 @@
 #include "save_player.h"
 #include "savedata.h"
 #include "string_gf.h"
+#include "system.h"
 #include "trainer_info.h"
 
 // Implemented in src/battle/battle_lib.c (port only)
@@ -53,25 +55,27 @@ int BattleController_PortChoosingBattler(BattleSystem *battleSys);
 typedef struct NameCache {
     enum TextBank bank;
     int count;
+    BOOL titleCase;
+    BOOL loaded;
     char (*names)[GEAR_NAME_LEN];
-    u8 *loaded;
 } NameCache;
 
-#define NAME_CACHE(var, textBank, size)         \
-    static char var##Names[size][GEAR_NAME_LEN]; \
-    static u8 var##Loaded[size];                 \
-    static NameCache var = { textBank, size, var##Names, var##Loaded }
+#define NAME_CACHE(var, textBank, size, titleCase) \
+    static char var##Names[size][GEAR_NAME_LEN];    \
+    static NameCache var = { textBank, size, titleCase, FALSE, var##Names }
 
-NAME_CACHE(sSpeciesNames, TEXT_BANK_SPECIES_NAME, MAX_SPECIES + 1);
-NAME_CACHE(sMoveNames, TEXT_BANK_MOVE_NAMES, 512);
-NAME_CACHE(sItemNames, TEXT_BANK_ITEM_NAMES, 600);
-NAME_CACHE(sAbilityNames, TEXT_BANK_ABILITY_NAMES, 128);
-NAME_CACHE(sNatureNames, TEXT_BANK_NATURE_NAMES, 32);
-NAME_CACHE(sTypeNames, TEXT_BANK_POKEMON_TYPE_NAMES, 32);
-NAME_CACHE(sLocationNames, TEXT_BANK_LOCATION_NAMES, 160);
+NAME_CACHE(sSpeciesNames, TEXT_BANK_SPECIES_NAME, MAX_SPECIES + 1, TRUE);
+NAME_CACHE(sMoveNames, TEXT_BANK_MOVE_NAMES, 512, FALSE);
+NAME_CACHE(sItemNames, TEXT_BANK_ITEM_NAMES, 600, FALSE);
+NAME_CACHE(sAbilityNames, TEXT_BANK_ABILITY_NAMES, 128, FALSE);
+NAME_CACHE(sNatureNames, TEXT_BANK_NATURE_NAMES, 32, FALSE);
+NAME_CACHE(sTypeNames, TEXT_BANK_POKEMON_TYPE_NAMES, 32, TRUE);
+NAME_CACHE(sLocationNames, TEXT_BANK_LOCATION_NAMES, 160, FALSE);
+
+static void TitleCase(char *name);
 
 // Game text to ASCII, stopping at the end of the string
-static void CharCodesToAscii(const charcode_t *chars, int maxLen, char *out, int outSize)
+void Gear_TextToAscii(const u16 *chars, int maxLen, char *out, int outSize)
 {
     int pos = 0;
     for (int i = 0; i < maxLen && chars[i] != CHAR_EOS && pos < outSize - 1; i++) {
@@ -92,18 +96,29 @@ static void CharCodesToAscii(const charcode_t *chars, int maxLen, char *out, int
     out[pos] = '\0';
 }
 
+// The whole bank is read the first time one of its names is needed
 static const char *CachedName(NameCache *cache, int id)
 {
     if (id < 0 || id >= cache->count) {
         return "?";
     }
-    if (!cache->loaded[id]) {
+    if (!cache->loaded) {
         MessageLoader *loader = MessageLoader_Init(MSG_LOADER_LOAD_ON_DEMAND, NARC_INDEX_MSGDATA__PL_MSG, cache->bank, HEAP_ID_SYSTEM);
-        String *string = MessageLoader_GetNewString(loader, id);
-        CharCodesToAscii(String_GetData(string), String_Length(string), cache->names[id], GEAR_NAME_LEN);
-        String_Free(string);
+        int count = MessageBank_NARCEntryCount(NARC_INDEX_MSGDATA__PL_MSG, cache->bank);
+        for (int i = 0; i < cache->count; i++) {
+            if (i >= count) {
+                snprintf(cache->names[i], GEAR_NAME_LEN, "?");
+                continue;
+            }
+            String *string = MessageLoader_GetNewString(loader, i);
+            Gear_TextToAscii(String_GetData(string), String_Length(string), cache->names[i], GEAR_NAME_LEN);
+            String_Free(string);
+            if (cache->titleCase) {
+                TitleCase(cache->names[i]);
+            }
+        }
         MessageLoader_Free(loader);
-        cache->loaded[id] = 1;
+        cache->loaded = TRUE;
     }
     return cache->names[id];
 }
@@ -129,10 +144,6 @@ static void TitleCase(char *name)
 
 const char *Gear_SpeciesName(u16 species)
 {
-    if (species < sSpeciesNames.count && !sSpeciesNames.loaded[species]) {
-        CachedName(&sSpeciesNames, species);
-        TitleCase(sSpeciesNames.names[species]);
-    }
     return CachedName(&sSpeciesNames, species);
 }
 
@@ -140,7 +151,7 @@ const char *Gear_SpeciesName(u16 species)
 static void MonDisplayName(const charcode_t *nickname, BOOL hasNickname, u16 species, char *out)
 {
     if (hasNickname) {
-        CharCodesToAscii(nickname, MON_NAME_LEN + 1, out, GEAR_NAME_LEN);
+        Gear_TextToAscii(nickname, MON_NAME_LEN + 1, out, GEAR_NAME_LEN);
     } else {
         snprintf(out, GEAR_NAME_LEN, "%s", Gear_SpeciesName(species));
     }
@@ -168,10 +179,6 @@ const char *Gear_NatureName(u8 nature)
 
 const char *Gear_TypeName(u8 type)
 {
-    if (type < sTypeNames.count && !sTypeNames.loaded[type]) {
-        CachedName(&sTypeNames, type);
-        TitleCase(sTypeNames.names[type]);
-    }
     return CachedName(&sTypeNames, type);
 }
 
@@ -316,7 +323,7 @@ void Gear_GetTrainer(GearTrainer *out)
     }
 
     TrainerInfo *info = SaveData_GetTrainerInfo(saveData);
-    CharCodesToAscii(TrainerInfo_Name(info), TRAINER_NAME_LEN + 1, out->name, GEAR_NAME_LEN);
+    Gear_TextToAscii(TrainerInfo_Name(info), TRAINER_NAME_LEN + 1, out->name, GEAR_NAME_LEN);
     out->gender = TrainerInfo_Gender(info);
     out->id = TrainerInfo_ID(info) & 0xFFFF;
     out->money = TrainerInfo_Money(info);
@@ -506,6 +513,154 @@ static void AddBattlePartyMons(GearBattle *out, Party *party)
         entry->level = Pokemon_GetValue(mon, MON_DATA_LEVEL, NULL);
         entry->fainted = Pokemon_GetValue(mon, MON_DATA_HP, NULL) == 0;
     }
+}
+
+// --- the battle menu -------------------------------------------------------------------
+
+static u32 sDsScreenTick = 0; // gSystem.vblankCounter when the battle last showed a DS-only screen
+static BOOL sDsScreenNoted = FALSE;
+
+void Gear_NoteBattleDsScreen(void)
+{
+    sDsScreenTick = gSystem.vblankCounter;
+    sDsScreenNoted = TRUE;
+}
+
+BOOL Gear_BattleNeedsDsScreen(void)
+{
+    if (sBattleSys == NULL) {
+        return FALSE;
+    }
+    if (BattleSystem_GetBattleType(sBattleSys) & BATTLE_TYPE_CATCH_TUTORIAL) {
+        return TRUE;
+    }
+    // A little longer than the screens themselves, so the layout doesn't flip back and
+    // forth while they open and close
+    return sDsScreenNoted && gSystem.vblankCounter - sDsScreenTick < 20;
+}
+
+static void FillMove(GearMove *out, u16 id, int pp, int maxPp)
+{
+    memset(out, 0, sizeof(*out));
+    out->id = id;
+    if (id == 0) {
+        return;
+    }
+    const CachedMove *data = MoveData(id);
+    out->type = data->type;
+    out->power = data->power;
+    out->accuracy = data->accuracy;
+    out->category = data->category;
+    out->pp = pp;
+    out->maxPp = maxPp;
+}
+
+BOOL Gear_GetBattleMenu(GearBattleMenu *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->cursor = -1;
+    out->battler = -1;
+    for (int i = 0; i < 4; i++) {
+        out->targetBattler[i] = -1;
+    }
+    if (sBattleSys == NULL) {
+        return FALSE;
+    }
+
+    BattleSubscreenPortMenu menu;
+    if (!BattleSubscreen_PortGetMenu(&menu) || !menu.polled) {
+        return FALSE;
+    }
+
+    const u32 battleType = BattleSystem_GetBattleType(sBattleSys);
+    u8 battlersByType[6];
+    BattleSystem_SetBattlersByType(sBattleSys, battlersByType);
+
+    switch (menu.menuConfig) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 7:
+    case 8:
+        out->kind = GEAR_MENU_ACTION;
+        out->battler = menu.data.actionData.battler;
+        out->safari = (battleType & (BATTLE_TYPE_SAFARI | BATTLE_TYPE_PAL_PARK)) != 0;
+        out->cancel = menu.hasCancelButton;
+        break;
+    case 5:
+    case 6:
+        out->kind = GEAR_MENU_FIRST;
+        out->battler = menu.data.actionData.battler;
+        break;
+    case 9:
+    case 10:
+        out->kind = GEAR_MENU_PAL_PARK;
+        break;
+    case 11:
+        out->kind = GEAR_MENU_MOVES;
+        if (menu.data.moveData.battlerType < 6) {
+            out->battler = battlersByType[menu.data.moveData.battlerType];
+        }
+        for (int m = 0; m < 4; m++) {
+            FillMove(&out->moves[m], menu.data.moveData.moveIDs[m], menu.data.moveData.currPP[m],
+                menu.data.moveData.maxPP[m]);
+        }
+        break;
+    case 12:
+        out->kind = GEAR_MENU_TARGETS;
+        if (menu.data.targetSelectData.battlerType < 6) {
+            out->battler = battlersByType[menu.data.targetSelectData.battlerType];
+        }
+        for (int i = 0; i < 4; i++) {
+            out->targetOk[i] = menu.targetOk[i];
+            out->targetBattler[i] = menu.targetBattler[i];
+        }
+        break;
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+        out->kind = GEAR_MENU_YES_NO;
+        switch (menu.menuConfig) {
+        case 14:
+            snprintf(out->yes, sizeof(out->yes), "Forget a move");
+            snprintf(out->no, sizeof(out->no), "Keep the old moves");
+            break;
+        case 15:
+            snprintf(out->yes, sizeof(out->yes), "Give up on %s", Gear_MoveName(menu.data.giveUpMoveData.move));
+            snprintf(out->no, sizeof(out->no), "Don't give up");
+            break;
+        case 16:
+            snprintf(out->yes, sizeof(out->yes), "Use next Pokemon");
+            snprintf(out->no, sizeof(out->no), "Run away");
+            break;
+        case 17:
+            snprintf(out->yes, sizeof(out->yes), "Switch Pokemon");
+            snprintf(out->no, sizeof(out->no), "Keep battling");
+            break;
+        default:
+            snprintf(out->yes, sizeof(out->yes), "Yes");
+            snprintf(out->no, sizeof(out->no), "No");
+            break;
+        }
+        break;
+    case 18:
+        out->kind = GEAR_MENU_STOP;
+        break;
+    default:
+        return FALSE;
+    }
+
+    out->ready = menu.ready;
+    out->cursor = menu.cursorButton;
+    return TRUE;
+}
+
+void Gear_PressBattleButton(int button)
+{
+    BattleSubscreen_PortPress(button);
 }
 
 BOOL Gear_GetBattle(GearBattle *out)

@@ -95,6 +95,14 @@ static void SysTask_AnimateMoveButtonPress(SysTask *unused, void *subscreen);
 static void SysTask_AnimateTargetButtonPress(SysTask *unused, void *subscreen);
 static void GetBattlerTargetFlags(BattleSubscreen *btlSubscreen, int selectedTarget, u8 *outFlags, int checkPresence);
 static void GetTargetSlotFlags(BattleSubscreen *btlSubscreen, u8 *outFlags, BOOL checkPresence);
+
+#ifdef SDK_PORT
+// The Gear's view of the battle menu (BattleSubscreen_PortGetMenu)
+static BattleSubscreen *sPortSubscreen = NULL; // the subscreen the battle last read input from
+static u32 sPortPollTick = 0;                  // when (gSystem.vblankCounter)
+static int sPortPress = -1;                    // a button pressed on the Gear
+static int sPortPressConfig = -1;              // ... in this menu
+#endif
 static void ov16_Dummy2(BattleSubscreen *unused1, int unused2);
 void BattleSubscreen_StartPanelSlide(BattleSubscreen *btlSubscreen, int slideSpeed, int targetOffset);
 static void SysTask_SlidePanel(SysTask *task, void *subscreen);
@@ -965,6 +973,13 @@ void *BattleSubscreen_New(NARC *unused1, NARC *unused2, BattleSystem *battleSys,
 
 void BattleSubscreen_Free(BattleSubscreen *btlSubscreen)
 {
+#ifdef SDK_PORT
+    if (sPortSubscreen == btlSubscreen) {
+        sPortSubscreen = NULL;
+    }
+    sPortPress = -1;
+#endif
+
     if (btlSubscreen->suppressActivationSfxPtr) {
         *btlSubscreen->suppressActivationSfxPtr = btlSubscreen->suppressActivationSfx;
     }
@@ -1272,12 +1287,118 @@ void BattleSubscreen_HideBallSprites(BattleSubscreen *btlSubscreen)
     }
 }
 
+#ifdef SDK_PORT
+
+static int PortButtonCount(const BattleMenuConfig *config)
+{
+    int count = 0;
+
+    if (config->touchScreenRects != NULL) {
+        while (config->touchScreenRects[count].rect.top != TOUCHSCREEN_TABLE_TERMINATOR) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+// The button under the game's own cursor (the layouts its cursor moves over)
+static int PortCursorButton(BattleSubscreen *btlSubscreen)
+{
+    const MenuCursor *cursor = &btlSubscreen->cursor;
+
+    if (!cursor->isActive) {
+        return -1;
+    }
+
+    switch (btlSubscreen->activeMenuConfigIndex) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 7:
+    case 8:
+        return cursor->y < 2 && cursor->x < 3 ? sBattleMenuButtonLayout[cursor->y][cursor->x] : -1;
+    case 5:
+    case 6:
+        return 0;
+    case 9:
+    case 10:
+        return cursor->y < 2 ? palParkMenuButtonLayout[cursor->y][0] : -1;
+    case 11:
+        return cursor->y < 3 && cursor->x < 2 ? sMoveMenuButtonLayout[cursor->y][cursor->x] : -1;
+    case 12:
+        return cursor->y < 3 && cursor->x < 2 ? sSelectTargetMenuButtonLayout[cursor->y][cursor->x] : -1;
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+        return cursor->y < 2 ? sYesNoMenuButtonLayout[cursor->y][0] : -1;
+    default:
+        return -1;
+    }
+}
+
+BOOL BattleSubscreen_PortGetMenu(BattleSubscreenPortMenu *out)
+{
+    MI_CpuClear8(out, sizeof(*out));
+    out->cursorButton = -1;
+
+    BattleSubscreen *btlSubscreen = sPortSubscreen;
+
+    if (btlSubscreen == NULL || btlSubscreen->activeMenuConfigIndex < 0) {
+        return FALSE;
+    }
+
+    const BattleMenuConfig *config = &sBattleMenuConfigs[btlSubscreen->activeMenuConfigIndex];
+
+    out->menuConfig = btlSubscreen->activeMenuConfigIndex;
+    out->polled = gSystem.vblankCounter - sPortPollTick <= 4;
+    out->ready = out->polled && !btlSubscreen->isPanelSliding && btlSubscreen->menuTransitionTask == NULL;
+    out->cursorButton = PortCursorButton(btlSubscreen);
+    out->buttonCount = PortButtonCount(config);
+    out->data = btlSubscreen->activeMenuData;
+    out->hasCancelButton = btlSubscreen->isWaitingForPartner;
+
+    if (out->menuConfig == 12) {
+        u8 flags[MAX_BATTLERS];
+        u8 battlersByType[6];
+
+        GetTargetSlotFlags(btlSubscreen, flags, TRUE);
+        BattleSystem_SetBattlersByType(btlSubscreen->battleSys, battlersByType);
+
+        for (int i = 0; i < 4; i++) {
+            out->targetOk[i] = flags[i] != 0;
+            out->targetBattler[i] = battlersByType[2 + i];
+        }
+    }
+
+    return TRUE;
+}
+
+void BattleSubscreen_PortPress(int button)
+{
+    if (sPortSubscreen == NULL) {
+        return;
+    }
+
+    sPortPress = button;
+    sPortPressConfig = sPortSubscreen->activeMenuConfigIndex;
+}
+#endif
+
 int BattleSystem_MenuInput(BattleSubscreen *btlSubscreen)
 {
     int isKeyInput = 0;
     GF_ASSERT(btlSubscreen->activeMenuConfigIndex != -1);
 
     const BattleMenuConfig *battleMenuConfig = &sBattleMenuConfigs[btlSubscreen->activeMenuConfigIndex];
+
+#ifdef SDK_PORT
+    sPortSubscreen = btlSubscreen;
+    sPortPollTick = gSystem.vblankCounter;
+#endif
 
     if (!battleMenuConfig->touchScreenRects || btlSubscreen->isPanelSliding == TRUE) {
         return 0xffffffff;
@@ -1291,6 +1412,16 @@ int BattleSystem_MenuInput(BattleSubscreen *btlSubscreen)
         buttonIndex = GetCatchTutorialInput(btlSubscreen);
     } else {
         buttonIndex = TouchScreen_CheckRectanglePressed(battleMenuConfig->touchScreenRects);
+
+#ifdef SDK_PORT
+        // A button pressed on the Gear counts as a touch
+        if (buttonIndex == TOUCHSCREEN_INPUT_NONE && sPortPress >= 0) {
+            if (sPortPressConfig == btlSubscreen->activeMenuConfigIndex && sPortPress < PortButtonCount(battleMenuConfig)) {
+                buttonIndex = sPortPress;
+            }
+            sPortPress = -1;
+        }
+#endif
 
         if (buttonIndex == TOUCHSCREEN_INPUT_NONE) {
             buttonIndex = BattleSystem_MenuKeys(btlSubscreen);

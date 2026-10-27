@@ -42,6 +42,7 @@ next page.
 * **Games**: reset to the title screen, switch games, add one (Renegade Platinum),
   choose at launch.
 * **Saves**: save slots, import / export, autosave, save now.
+* **Save editor**: see below.
 * **Gameplay**: 60 FPS options.
 * **Display**: 3D resolution, second display, layout, swap screens, vsync.
 * **Sound**, **Controls** (remap buttons: tap a control, press the button).
@@ -122,10 +123,16 @@ The Thor's lower panel is taller than a DS screen, so the DS touch screen sits a
 top and the **Gear** fills the space below it, in the spirit of HeartGold's
 Pokegear and Kanto Gear:
 
-* **Battle** (only during battles, opens by itself): the opponents' types, HP and
-  status, and every move of the Pokemon you are commanding with how well it hits each
-  opponent (`x2 Super effective`, `L x1/2 R x2` in double battles). Further down: stat
-  changes, your Pokemon's ability and item.
+* **Battle** (only during battles, opens by itself and takes the whole lower panel):
+  the battle menu itself, so there is no switching back and forth. Fight, Bag, Pokemon
+  and Run (Ball / Bait / Mud in the Safari Zone), your moves with their PP and how well
+  each hits the opponents (`x2 Super effective`, `L x1/2 R x2` in double battles), the
+  targets in double battles, and the yes/no questions (forget a move, switch Pokemon,
+  ...). The D-pad cursor shows on the Gear too. The DS screen comes back by itself for
+  the bag and the party, and goes away again after. Above the menu: the opponents'
+  types, HP and status, and your Pokemon; further down: stat changes, abilities and
+  items. Turn this off with *Settings > Gear > Battle menu on the Gear* (the Gear then
+  shows the information only, beside the DS screen).
 * **Party**: HP, status and level at a glance; tap a Pokemon for its moves, stats,
   ability, nature and item.
 * **Area**: the wild Pokemon of the route you are on for the current time of day
@@ -138,9 +145,36 @@ Pokegear and Kanto Gear:
   abilities, items, moves and whole team).
 
 Tap **Full** (or press **L3**) to give the Gear the whole lower panel and **Split** to
-bring the DS touch screen back; battles bring it back by themselves. Turn the Gear off
+bring the DS touch screen back. Turn the Gear off
 (or change what it reveals) in *Settings > Gear*. On desktop builds it appears in the
 "Bottom Screen" window (F1 toggles full screen).
+
+## Save editor
+
+*Settings > Save editor* changes the game you are playing, in memory: save in the game
+to keep the changes (or reset without saving to undo them). It works while you are
+walking around (not in a battle or one of the game's menus).
+
+* **Party** and **PC boxes**: level, nature, shiny, gender, ability, held item,
+  friendship, IVs (or all 31), EVs (510 in all), moves (the ones it can learn by level
+  and TM/HM, or any move), heal. Nature, shininess, gender and ability come from the
+  Pokemon's personality value, so changing one picks a new value that keeps the others.
+* **Give a Pokemon**: any species (by Pokedex number or by name) at any level, with a
+  nature, shiny or not, perfect IVs, a held item; to the party or the PC. It is caught
+  in a Poke Ball with you as its trainer and counts as caught in the Pokedex.
+* **Bag**: every pocket, how many of each item (0 takes it out), add any item.
+* **Trainer**: money, Battle Points, badges, play time, the National Pokedex.
+* **Legendary events**: the Mystery Gift events Nintendo gave out. *Start* gives the key
+  item as the Poke Mart delivery man would and turns the event on: Darkrai (Member Card:
+  sleep at the Harbor Inn in Canalave City), Shaymin (Oak's Letter: the tablet on Route
+  224), Arceus (Azure Flute: the top of Spear Pillar) and Rotom's forms (Secret Key:
+  the locked room of the Team Galactic building in Eterna City). Each shows what the
+  game still needs first (the Hall of Fame and the National Pokedex for the first
+  three). The game checks when you arrive at the place, so leave and come back if you
+  are already there.
+
+Numbers open a keypad when tapped (the controller works too: A on the number, D-pad
+and A on the keys, B to cancel), and long lists go a letter at a time.
 
 ## 60 FPS
 

@@ -145,6 +145,39 @@ void Gear_SetBattleSystem(struct BattleSystem *battleSys);
 // Fills out the current battle; returns FALSE (and out->active FALSE) outside battles
 BOOL Gear_GetBattle(GearBattle *out);
 
+// The battle's menu on the DS bottom screen, which the Gear can show and use instead
+enum GearBattleMenuKind {
+    GEAR_MENU_NONE = 0, // nothing to choose right now
+    GEAR_MENU_ACTION,   // buttons: 0 Fight, 1 Bag, 2 Pokemon, 3 Run (or Cancel)
+    GEAR_MENU_FIRST,    // the first battle: 0 Fight
+    GEAR_MENU_PAL_PARK, // 0 Park Ball, 1 Run
+    GEAR_MENU_MOVES,    // 0 Cancel, 1-4 the moves
+    GEAR_MENU_TARGETS,  // 0-3 targets (bottom left, top right, bottom right, top left), 4 Cancel
+    GEAR_MENU_YES_NO,   // 0 yes, 1 no (labels below)
+    GEAR_MENU_STOP,     // 0 stop watching a recorded battle
+};
+
+typedef struct GearBattleMenu {
+    int kind;
+    BOOL ready;          // the game is reading the menu now: buttons can be pressed
+    int cursor;          // button under the game's own cursor (D-pad), -1 if hidden
+    int battler;         // whose command it is (actions, moves, targets), -1 if unknown
+    BOOL safari;         // actions are Ball / Bait / Mud / Run
+    BOOL cancel;         // the last action button is Cancel (the second Pokemon of a double)
+    char yes[40];        // GEAR_MENU_YES_NO
+    char no[40];
+    GearMove moves[4];   // GEAR_MENU_MOVES
+    BOOL targetOk[4];    // GEAR_MENU_TARGETS: can be chosen
+    int targetBattler[4]; // battler on each target button
+} GearBattleMenu;
+
+BOOL Gear_GetBattleMenu(GearBattleMenu *out);
+void Gear_PressBattleButton(int button);
+// The battle shows something only the DS screen can (bag, party, move to forget, the
+// catching tutorial): the Gear should make room for the DS screen
+BOOL Gear_BattleNeedsDsScreen(void);
+void Gear_NoteBattleDsScreen(void); // battle code: such a screen is up this frame
+
 // The overworld is running (a save is loaded and the player is in the field or in a
 // sub-screen/battle started from it)
 BOOL Gear_IsGameRunning(void);
@@ -157,6 +190,8 @@ BOOL Gear_SpeciesSeen(u16 species);
 BOOL Gear_SpeciesCaught(u16 species);
 
 // Names (cached; ASCII, accents dropped)
+// Game text (charcode_t) to ASCII, up to maxLen characters or the end of the string
+void Gear_TextToAscii(const u16 *chars, int maxLen, char *out, int outSize);
 const char *Gear_SpeciesName(u16 species);
 const char *Gear_MoveName(u16 move);
 const char *Gear_ItemName(u16 item);

@@ -29,6 +29,8 @@ extern const unsigned int AtkinsonHyperlegible_Bold_ttf_size;
 
 using namespace SIM::UI;
 
+void SaveEditor_Draw(); // gui_save_editor.cpp
+
 namespace {
 
 void SaveConfig()
@@ -324,7 +326,10 @@ void DrawGear()
         config->gearDiscovery = level;
         SaveConfig();
     }
-    Note("Tap Full in the Gear (or press L3) to give it the whole lower screen; battles bring the DS screen back.");
+    ConfigToggle("Battle menu on the Gear", "In battles the Gear takes the whole lower screen with Fight, Bag, Pokemon, "
+        "Run and your moves with their matchups. The DS screen comes back for the bag and the party.",
+        &config->gearBattleControls, config->gearEnabled != FALSE);
+    Note("Tap Full in the Gear (or press L3) to give it the whole lower screen, Split for the DS screen.");
 }
 
 // --- Cheats ----------------------------------------------------------------------------------
@@ -358,6 +363,7 @@ void SIM_Prj_SettingsPages()
 {
     SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
+    SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
     SIM::Settings::AddPage("Gameplay", "60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
     SIM::Settings::AddPage("Cheats", "Walk through walls, no encounters", DrawCheats, 80);

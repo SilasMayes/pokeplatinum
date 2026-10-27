@@ -69,6 +69,9 @@ static int IniHandler(void* user, const char* section, const char* name,
     if(MATCH("Gear", "Enabled")) {
         config->gearEnabled = StringToBool(value);
     }
+    if(MATCH("Gear", "BattleControls")) {
+        config->gearBattleControls = StringToBool(value);
+    }
     if(MATCH("Gear", "Discovery")) {
         config->gearDiscovery = atoi(value);
     }
@@ -121,6 +124,7 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   // Gear section
   aConfig->gearEnabled = TRUE;
   aConfig->gearDiscovery = GEAR_DISCOVERY_GUIDE;
+  aConfig->gearBattleControls = TRUE;
 }
 
 // Loads the configuration file. If it does not exist, return false
@@ -161,6 +165,7 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "[Gear]\n");
     fprintf(configFile, "Enabled=%s\n", BoolToString(aConfig->gearEnabled));
     fprintf(configFile, "Discovery=%d\n", aConfig->gearDiscovery);
+    fprintf(configFile, "BattleControls=%s\n", BoolToString(aConfig->gearBattleControls));
 
     fclose(configFile);
 }

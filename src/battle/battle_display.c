@@ -1,5 +1,9 @@
 #include "battle/battle_display.h"
 
+#ifdef SDK_PORT
+#include "port/gear_data.h"
+#endif
+
 #include <nitro.h>
 #include <string.h>
 
@@ -3848,6 +3852,10 @@ static void Task_RecordingShowTargetSelectMenu(SysTask *task, void *data)
 
 static void Task_PlayerShowBagMenu(SysTask *task, void *data)
 {
+#ifdef SDK_PORT
+    // The bag, party and move screens are on the DS screen: the Gear makes room for it
+    Gear_NoteBattleDsScreen();
+#endif
     BagMenuData *bagMenuData = data;
     PaletteData *paletteData = BattleSystem_GetPaletteData(bagMenuData->battleSys);
 
@@ -4436,6 +4444,10 @@ static void Task_RecordingShowBagMenu(SysTask *task, void *data)
 
 static void Task_PlayerShowPartyMenu(SysTask *task, void *data)
 {
+#ifdef SDK_PORT
+    // The bag, party and move screens are on the DS screen: the Gear makes room for it
+    Gear_NoteBattleDsScreen();
+#endif
     PartyMenuData *partyMenuData = data;
     PaletteData *paletteData = BattleSystem_GetPaletteData(partyMenuData->battleSys);
 
@@ -5492,6 +5504,10 @@ static void SysTask_SetupUI(SysTask *task, void *data)
 
 static void Task_ForgetMove(SysTask *task, void *data)
 {
+#ifdef SDK_PORT
+    // The bag, party and move screens are on the DS screen: the Gear makes room for it
+    Gear_NoteBattleDsScreen();
+#endif
     ForgetMoveData *forgetMoveData = data;
     PaletteData *paletteData = BattleSystem_GetPaletteData(forgetMoveData->battleSys);
 
