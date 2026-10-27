@@ -85,6 +85,9 @@ void Camera_SetClipping(const fx32 nearClip, const fx32 farClip, Camera *camera)
 void Camera_InitWithTarget(const VecFx32 *target, const fx32 distance, const CameraAngle *angle, const u16 fovY, const u8 projection, const BOOL trackTarget, Camera *camera);
 void Camera_InitWithPosition(const VecFx32 *position, const fx32 distance, const CameraAngle *angle, const u16 fovY, const u8 projection, Camera *camera);
 void Camera_InitWithTargetAndPosition(const VecFx32 *target, const VecFx32 *position, const u16 fovY, const u8 projection, const BOOL trackTarget, Camera *camera);
+#ifdef SDK_PORT
+Camera *Camera_PortGetActive(void);
+#endif
 void Camera_ComputeProjectionMatrix(const u8 projection, Camera *camera);
 void Camera_SetFOV(const u16 fovY, Camera *camera);
 void Camera_AdjustFOV(const u16 amount, Camera *camera);

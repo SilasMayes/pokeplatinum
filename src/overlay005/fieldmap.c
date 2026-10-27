@@ -80,6 +80,10 @@
 #include "unk_020559DC.h"
 #include "vram_transfer.h"
 
+#ifdef SDK_PORT
+#include "port/widescreen.h"
+#endif
+
 #define FIELD_MAP_INIT_STATE_RESET         0
 #define FIELD_MAP_INIT_STATE_LOAD          1
 #define FIELD_MAP_INIT_STATE_BOTTOM_SCREEN 2
@@ -677,6 +681,10 @@ static void ov5_021D15F4(FieldSystem *fieldSystem)
     MtxFx44 v0, v1;
 
     G3_ResetG3X();
+
+#ifdef SDK_PORT
+    Widescreen_BeforeFieldRender(fieldSystem);
+#endif
 
     if (fieldSystem->unk_20 == 1) {
         if (FieldMap_InDistortionWorld(fieldSystem) == TRUE) {

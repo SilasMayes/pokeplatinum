@@ -7,6 +7,10 @@
 #include "fx_util.h"
 #include "heap.h"
 
+#ifdef SDK_PORT
+#include "port/widescreen.h"
+#endif
+
 #define CAMERA_DEFAULT_ASPECT_RATIO (FX32_ONE * 4 / 3)
 
 GXBufferMode gBufferMode = GX_BUFFERMODE_W;
@@ -178,6 +182,13 @@ void Camera_ClearActive(void)
 {
     sActiveCamera = NULL;
 }
+
+#ifdef SDK_PORT
+Camera *Camera_PortGetActive(void)
+{
+    return sActiveCamera;
+}
+#endif
 
 void Camera_ComputeViewMatrix(void)
 {
@@ -355,11 +366,18 @@ void Camera_InitWithTargetAndPosition(const VecFx32 *target, const VecFx32 *posi
 
 void Camera_ComputeProjectionMatrix(const u8 projection, Camera *camera)
 {
+#ifdef SDK_PORT
+    // Widescreen overworld: the field camera sees as wide as the top display
+    const fx32 aspectRatio = Widescreen_AspectRatio(camera, camera->perspective.aspectRatio);
+#else
+    const fx32 aspectRatio = camera->perspective.aspectRatio;
+#endif
+
     if (projection == CAMERA_PROJECTION_PERSPECTIVE) {
         NNS_G3dGlbPerspective(
             camera->perspective.sinFovY,
             camera->perspective.cosFovY,
-            camera->perspective.aspectRatio,
+            aspectRatio,
             camera->perspective.nearClip,
             camera->perspective.farClip);
 
@@ -367,7 +385,7 @@ void Camera_ComputeProjectionMatrix(const u8 projection, Camera *camera)
         gBufferMode = GX_BUFFERMODE_Z;
     } else {
         fx32 top = FX_Mul(FX_Div(camera->perspective.sinFovY, camera->perspective.cosFovY), camera->distance);
-        fx32 right = FX_Mul(top, camera->perspective.aspectRatio);
+        fx32 right = FX_Mul(top, aspectRatio);
 
         NNS_G3dGlbOrtho(top, -top, -right, right, camera->perspective.nearClip, camera->perspective.farClip);
 

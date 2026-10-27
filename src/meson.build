@@ -1035,6 +1035,7 @@ pokeplatinum_c += files(
     'port/hm_free.c',
     'port/shiny_hunt.c',
     'port/nuzlocke.c',
+    'port/widescreen.c',
     'port/gui_saves.cpp',
     'port/gui_settings.cpp',
     'port/gear_data.c',

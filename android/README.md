@@ -46,7 +46,8 @@ next page.
 * **Gameplay**: instant text and HP/EXP bars, field moves without HMs, the hard level
   cap, the game clock (hours and days ahead of the device's), the Nuzlocke helper, 60
   FPS options, drawing every DS frame.
-* **Display**: 3D resolution, second display, layout, swap screens, vsync.
+* **Display**: 3D sharpness and edge smoothing, second display, layout, swap screens,
+  widescreen (experimental), vsync.
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
 * **Gear**, **Cheats**.
@@ -119,6 +120,15 @@ code changes (instant text and HP bars) are not carried over.
 
 Turn the second display off with *Settings > Display > Bottom screen on the second
 display*. *Swap screens* swaps which screen goes on which panel.
+
+**Widescreen overworld (experimental, off by default):** *Settings > Display >
+Widescreen* fills the Thor's 16:9 top panel with the overworld instead of a 4:3 box:
+the field camera sees more of the map on the left and right, unstretched. Text boxes,
+menus and the location banner stay 4:3 in the middle. It only applies on the overworld
+in clear weather with the bottom screen on the second display (not swapped); battles,
+menus and other screens stay 4:3, and so do rain, snow, sand, fog and dark caves, whose
+weather and darkness are 2D overlays that would only cover the middle. The Poke Radar
+keeps its patches while they are anywhere on the wider screen.
 
 ## Gear (lower-panel companion)
 
