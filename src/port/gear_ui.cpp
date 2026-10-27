@@ -3,6 +3,7 @@
 // encounters, trainer progress and settings, drawn at the panel's native resolution
 // with Dear ImGui.
 #include <nitro.h>
+#include <simulator/sim.h>
 #include <simulator/imgui/imgui.hpp>
 #include <simulator/sim_carts.h>
 #include <simulator/sim_settings.hpp>
@@ -378,12 +379,32 @@ void DrawHeader(const SIM_CompanionFrame *frame) {
   TextAt(draw, sBold, S(16.0f), ImVec2(toggleX + (toggleWidth - toggleText.x) * 0.5f, origin.y + (height - toggleText.y) * 0.5f),
          kAccent, toggleLabel);
 
+  // Fast-forward on/off
+  const bool fastForward = SIM_IsFastForwarding() != FALSE;
+  const char *ffLabel = ">>";
+  ImVec2 ffText = TextSize(sBold, S(16.0f), ffLabel);
+  float ffWidth = ffText.x + S(22.0f);
+  float ffX = toggleX - ffWidth - S(6.0f);
+  ImGui::SetCursorScreenPos(ImVec2(ffX, origin.y));
+  if (Tap("fastforward", ImVec2(ffWidth, height))) {
+    SIM_SetFastForward(fastForward ? FALSE : TRUE);
+  }
+  if (fastForward) {
+    draw->AddRectFilled(ImVec2(ffX, origin.y + S(4.0f)), ImVec2(ffX + ffWidth, origin.y + height - S(4.0f)), kAccent,
+                        S(16.0f));
+  } else {
+    draw->AddRect(ImVec2(ffX, origin.y + S(4.0f)), ImVec2(ffX + ffWidth, origin.y + height - S(4.0f)), kAccent,
+                  S(16.0f), 0, S(2.0f));
+  }
+  TextAt(draw, sBold, S(16.0f), ImVec2(ffX + (ffWidth - ffText.x) * 0.5f, origin.y + (height - ffText.y) * 0.5f),
+         fastForward ? IM_COL32(16, 24, 34, 255) : kAccent, ffLabel);
+
   char clock[16];
   time_t now = time(nullptr);
   struct tm *local = localtime(&now);
   snprintf(clock, sizeof(clock), "%d:%02d", local != nullptr ? local->tm_hour : 0, local != nullptr ? local->tm_min : 0);
   ImVec2 clockSize = TextSize(sBold, S(20.0f), clock);
-  float clockX = toggleX - clockSize.x - S(12.0f);
+  float clockX = ffX - clockSize.x - S(12.0f);
   if (clockX > x) {
     TextAt(draw, sBold, S(20.0f), ImVec2(clockX, origin.y + (height - clockSize.y) * 0.5f), kText, clock);
   }
