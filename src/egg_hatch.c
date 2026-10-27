@@ -37,6 +37,10 @@
 #include "unk_02092494.h"
 #include "vram_transfer.h"
 
+#ifdef SDK_PORT
+#include "port/shiny_hunt.h"
+#endif
+
 FS_EXTERN_OVERLAY(egg_hatch_cutscene);
 
 static BOOL EggHatch_Init(ApplicationManager *appMan, int *state);
@@ -179,6 +183,9 @@ static BOOL FieldTask_HatchEgg(FieldTask *fieldTask)
     switch (app->state) {
     case 0:
         Egg_CreateHatchedMon(app->args.mon, HEAP_ID_FIELD2);
+#ifdef SDK_PORT
+        ShinyHunt_OnEggHatched(app->args.mon);
+#endif
         FieldTransition_FinishMap(fieldTask);
         app->state++;
         break;

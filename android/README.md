@@ -155,7 +155,13 @@ Pokegear and Kanto Gear:
   ability, nature and item.
 * **Area**: the wild Pokemon of the route you are on for the current time of day
   (walking, surfing, each rod, Poke Radar and swarms) with their rates and levels, and
-  which ones you have caught.
+  which ones you have caught. On top, the **shiny hunt** counters: Pokemon met (wild
+  and one-off battles) since the last shiny with the odds of having seen one by now,
+  eggs hatched and soft resets since then, the Poke Radar chain with its shiny rate per
+  patch, and the last shiny found. Each species in the list shows how many of it you
+  have met since its last shiny (`x154`), and so does the battle tab for the wild
+  Pokemon in front of you. The counters live beside the save slot (`save_slotN.hunt`),
+  so soft resets don't take them back; *Reset* (tap twice) starts them over.
 * **Trainer**: money, badges, Pokedex counts, play time and the save slot.
 * **Settings**: how much the Gear reveals. *Vanilla* shows only what the game shows,
   *Guide* (default) adds the encounter guide, type matchups, damage estimates and turn

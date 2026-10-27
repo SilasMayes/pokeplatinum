@@ -23,6 +23,7 @@
 #include "port/gear_data.h"
 #include "port/rom_patches.h"
 #include "port/save_slots.h"
+#include "port/shiny_hunt.h"
 #include "port/sim_config_prj.h"
 
 extern "C" {
@@ -643,6 +644,76 @@ const char *TimeOfDayName(int timeOfDay) {
   }
 }
 
+// "12,345"
+const char *Thousands(u32 value, char *out, size_t size) {
+  char digits[16];
+  snprintf(digits, sizeof(digits), "%u", (unsigned)value);
+  const size_t length = strlen(digits);
+  size_t used = 0;
+  for (size_t i = 0; i < length && used + 2 < size; i++) {
+    if (i > 0 && (length - i) % 3 == 0) {
+      out[used++] = ',';
+    }
+    out[used++] = digits[i];
+  }
+  out[used] = '\0';
+  return out;
+}
+
+// Shiny-hunt counters (port/shiny_hunt.h): met, eggs and resets since the last shiny,
+// the Poke Radar chain, the last find
+void DrawHunt() {
+  const ShinyHuntStats *hunt = ShinyHunt_Get();
+  static double sConfirmUntil = 0.0; // the reset button waits for a second tap until then
+  const double now = ImGui::GetTime();
+
+  ImGui::Dummy(ImVec2(0, S(2.0f)));
+  ImGui::PushFont(sBold, S(16.0f));
+  ImGui::TextColored(ImColor(kAccent), "Shiny hunt");
+  ImGui::PopFont();
+  const bool confirming = now < sConfirmUntil;
+  const char *resetLabel = confirming ? "Tap again to reset" : "Reset";
+  const float buttonWidth = TextSize(sRegular, S(15.0f), resetLabel).x + S(20.0f);
+  ImGui::SameLine();
+  ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - buttonWidth);
+  if (ImGui::Button(resetLabel, ImVec2(buttonWidth, 0)) && !sDragging) {
+    if (confirming) {
+      ShinyHunt_ResetCounters();
+      sConfirmUntil = 0.0;
+    } else {
+      sConfirmUntil = now + 3.0;
+    }
+  }
+
+  char met[24];
+  ImGui::Text("%s met since the last shiny", Thousands(hunt->encounters, met, sizeof(met)));
+  if (hunt->encounters > 0) {
+    ImGui::SameLine();
+    const double chance = ShinyHunt_Chance(hunt->encounters) * 100.0;
+    ImGui::TextColored(ImColor(kTextDim), chance < 10.0 ? "(%.1f%% odds by now)" : "(%.0f%% odds by now)", chance);
+  }
+  if (hunt->eggs > 0 || hunt->resets > 0) {
+    char eggs[24];
+    char resets[24];
+    ImGui::TextColored(ImColor(kTextDim), "Eggs hatched: %s   Soft resets: %s", Thousands(hunt->eggs, eggs, sizeof(eggs)),
+                       Thousands(hunt->resets, resets, sizeof(resets)));
+  }
+  if (sArea.radarChain > 0) {
+    // As CheckPatchShiny in pokeradar.c: each new patch is shiny 1 in (8200 - 200 x chain), 200 at best
+    int rate = 8200 - sArea.radarChain * 200;
+    rate = rate < 200 ? 200 : rate;
+    ImGui::TextColored(ImColor(sArea.radarChain >= 40 ? kGood : kWarn), "Poke Radar chain %d: a patch is shiny 1 in %d",
+                       sArea.radarChain, rate);
+  }
+  if (hunt->findCount > 0) {
+    const ShinyHuntFind &last = hunt->finds[0];
+    char count[24];
+    const char *what = last.method == SHINY_HUNT_EGG ? (last.count == 1 ? "egg" : "eggs") : "met";
+    ImGui::TextColored(ImColor(kTextDim), "Last shiny: %s after %s %s%s%s", Gear_SpeciesName(last.species),
+                       Thousands(last.count, count, sizeof(count)), what, last.date[0] ? ", " : "", last.date);
+  }
+}
+
 void DrawArea() {
   ImDrawList *draw = ImGui::GetWindowDrawList();
   if (!sArea.valid) {
@@ -655,6 +726,8 @@ void DrawArea() {
   ImGui::PopFont();
   ImGui::SameLine();
   ImGui::TextColored(ImColor(kTextDim), "  %s", TimeOfDayName(sArea.timeOfDay));
+
+  DrawHunt();
 
   if (Discovery() == GEAR_DISCOVERY_VANILLA) {
     ImGui::TextDisabled("The encounter guide is off (Settings > Discovery).");
@@ -719,8 +792,18 @@ void DrawArea() {
       draw->AddCircleFilled(center, S(3.0f), kTextDim);
     }
 
-    TextAt(draw, sBold, S(17.0f), ImVec2(pos.x + S(36.0f), pos.y + S(7.0f)), showName ? kText : kTextDim,
-           showName ? Gear_SpeciesName(enc.species) : "???");
+    const char *speciesName = showName ? Gear_SpeciesName(enc.species) : "???";
+    TextAt(draw, sBold, S(17.0f), ImVec2(pos.x + S(36.0f), pos.y + S(7.0f)), showName ? kText : kTextDim, speciesName);
+    // How many met since the last shiny one
+    const u32 metCount = showName ? ShinyHunt_SpeciesCount(enc.species) : 0;
+    if (metCount > 0) {
+      char metText[24];
+      char number[16];
+      snprintf(metText, sizeof(metText), "x%s", Thousands(metCount, number, sizeof(number)));
+      TextAt(draw, sRegular, S(14.0f),
+             ImVec2(pos.x + S(36.0f) + TextSize(sBold, S(17.0f), speciesName).x + S(8.0f), pos.y + S(10.0f)), kTextDim,
+             metText);
+    }
 
     char info[32];
     if (enc.minLevel == enc.maxLevel) {
@@ -1511,6 +1594,15 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
     ImGui::Dummy(ImVec2(0, S(4.0f)));
     ImGui::TextColored(ImColor(Gear_SpeciesCaught(wild.species) ? kGood : kWarn), "%s",
                        Gear_SpeciesCaught(wild.species) ? "Already caught" : "Not caught yet");
+  }
+  if (!sBattle.trainer && opponentCount > 0) {
+    // The shiny hunt: this one counted
+    const GearBattler &wild = sBattle.battlers[opponents[0]];
+    char met[24];
+    char total[24];
+    ImGui::TextColored(ImColor(kTextDim), "%s %s met since the last shiny one (%s of any)",
+                       Thousands(ShinyHunt_SpeciesCount(wild.species), met, sizeof(met)), Gear_SpeciesName(wild.species),
+                       Thousands(ShinyHunt_Get()->encounters, total, sizeof(total)));
   }
 }
 

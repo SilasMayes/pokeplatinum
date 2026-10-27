@@ -40,6 +40,7 @@
 #include "party.h"
 #include "play_time.h"
 #include "pokedex.h"
+#include "pokeradar.h"
 #include "pokemon.h"
 #include "rtc.h"
 #include "save_player.h"
@@ -417,6 +418,9 @@ void Gear_GetArea(GearArea *out)
     out->mapHeaderID = fieldSystem->location->mapHeaderID;
     snprintf(out->name, sizeof(out->name), "%s", Gear_LocationName(out->mapHeaderID));
     out->timeOfDay = GetTimeOfDay();
+    if (fieldSystem->chain != NULL && GetRadarChainActive(fieldSystem->chain)) {
+        out->radarChain = GetChainCount(fieldSystem);
+    }
 
     if (!MapHeader_HasWildEncounters(out->mapHeaderID)) {
         return;

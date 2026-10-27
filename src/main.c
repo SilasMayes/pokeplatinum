@@ -38,6 +38,7 @@
 #include "port/rom_patches.h"
 #include "port/sim_config_prj.h"
 #include "port/save_slots.h"
+#include "port/shiny_hunt.h"
 #include "port/soft_reset.h"
 #include "applications/title_screen.h"
 #include <simulator/sim_carts.h>
@@ -166,10 +167,14 @@ void NitroMain(void)
 #ifdef SDK_PORT
         // The settings screen's "Reset to the title screen"
         if (SoftReset_TakeRequest() && !gSystem.inhibitReset) {
+            ShinyHunt_OnSoftReset();
             SoftReset(RESET_CLEAN);
         }
 #endif
         if ((gSystem.heldKeysRaw & RESET_COMBO) == RESET_COMBO && !gSystem.inhibitReset) {
+#ifdef SDK_PORT
+            ShinyHunt_OnSoftReset();
+#endif
             SoftReset(RESET_CLEAN);
         }
 

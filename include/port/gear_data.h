@@ -93,6 +93,7 @@ typedef struct GearArea {
     int mapHeaderID;
     char name[GEAR_NAME_LEN];
     int timeOfDay;       // TIMEOFDAY_*
+    int radarChain;      // Poke Radar chain going on (0: none)
     int count;
     GearEncounter entries[GEAR_AREA_MAX_ENTRIES]; // grouped by method, highest rate first
 } GearArea;

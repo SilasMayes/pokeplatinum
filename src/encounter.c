@@ -50,6 +50,10 @@
 #include "unk_020528D0.h"
 #include "vars_flags.h"
 
+#ifdef SDK_PORT
+#include "port/shiny_hunt.h"
+#endif
+
 typedef struct Encounter {
     int *resultMaskPtr;
     int introEffectID;
@@ -98,6 +102,9 @@ static BOOL FieldTask_RunBattle(FieldTask *task)
 
     switch (*state) {
     case 0:
+#ifdef SDK_PORT
+        ShinyHunt_OnBattleStart(dto->battleType, dto->parties[BATTLER_ENEMY_1]);
+#endif
         FieldSystem_StartBattleProcess(fieldSystem, dto);
         (*state)++;
         break;
