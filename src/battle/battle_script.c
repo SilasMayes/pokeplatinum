@@ -12127,3 +12127,43 @@ static void BattleAI_SetHeldItem(BattleContext *battleCtx, u8 battler, u16 item)
 {
     battleCtx->aiContext.battlerHeldItems[battler] = item;
 }
+
+#ifdef SDK_PORT
+// The Gear companion's damage estimate: the powers some moves' scripts work out, from the
+// same tables (see BattleLib_PortEstimateDamage)
+int BattleScript_PortFlailPower(int curHP, int maxHP)
+{
+    int i, curHPPixels = App_PixelCount(curHP, maxHP, 64);
+    for (i = 0; i < NELEMS(sHPPixelsToFlailPower) - 1; i++) {
+        if (curHPPixels <= sHPPixelsToFlailPower[i][0]) {
+            break;
+        }
+    }
+
+    return sHPPixelsToFlailPower[i][1];
+}
+
+int BattleScript_PortWeightPower(int weight)
+{
+    int i = 0;
+    for (; sWeightToPower[i][0] != 0xFFFF; i++) {
+        if (sWeightToPower[i][0] >= weight) {
+            return sWeightToPower[i][1];
+        }
+    }
+
+    return 120;
+}
+
+int BattleScript_PortTrumpCardPower(int ppAfterUse)
+{
+    if (ppAfterUse < 0) {
+        ppAfterUse = 0;
+    }
+    if (ppAfterUse > 4) {
+        ppAfterUse = 4;
+    }
+
+    return sCurrentPPScaledPower[ppAfterUse];
+}
+#endif

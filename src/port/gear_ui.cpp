@@ -774,6 +774,88 @@ bool IsDamaging(const GearMove &move) {
   return move.category != 2 && move.power > 0;
 }
 
+// What one of a battler's moves does to a target, from the battle's own damage formula
+struct DamageEstimate {
+  bool known = false; // false: status move, or power the battle only knows when it's used
+  int low = 0;        // the whole move (every hit), no critical hit
+  int high = 0;
+  int hits = 1;       // 0: 2 to 5 hits (low/high are per hit then)
+  bool ko = false;    // knocks the target out whatever the roll
+  bool maybeKo = false;
+};
+
+DamageEstimate EstimateFor(int attacker, int slot, int moveId, int target) {
+  DamageEstimate e;
+  if (attacker < 0 || attacker >= GEAR_BATTLERS_MAX || target < 0 || target >= GEAR_BATTLERS_MAX || slot < 0 || slot > 3) {
+    return e;
+  }
+  const GearBattler &a = sBattle.battlers[attacker];
+  const GearBattler &t = sBattle.battlers[target];
+  if (!a.present || !t.present || a.moves[slot].id != moveId || a.damageMin[slot][target] < 0) {
+    return e;
+  }
+  e.known = true;
+  e.hits = a.moveHits[slot];
+  const int perHits = e.hits > 1 ? e.hits : 1;
+  e.low = a.damageMin[slot][target] * perHits;
+  e.high = a.damageMax[slot][target] * perHits;
+  if (t.hp > 0 && e.high > 0) {
+    const int bestLow = e.hits == 0 ? e.low * 2 : e.low;
+    const int bestHigh = e.hits == 0 ? e.high * 5 : e.high;
+    e.ko = bestLow >= t.hp;
+    e.maybeKo = !e.ko && bestHigh >= t.hp;
+  }
+  return e;
+}
+
+// "34-41%" of the target's full HP (rounded outwards); "x2-5" after a per-hit range
+void PercentText(const DamageEstimate &e, int maxHp, char *out, size_t size) {
+  if (e.high == 0) {
+    snprintf(out, size, "0%%");
+    return;
+  }
+  const int hp = maxHp > 0 ? maxHp : 1;
+  const int low = e.low * 100 / hp;
+  int high = (e.high * 100 + hp - 1) / hp;
+  const char *suffix = e.hits == 0 ? " x2-5" : "";
+  if (low == high) {
+    snprintf(out, size, "%d%%%s", low, suffix);
+  } else {
+    snprintf(out, size, "%d-%d%%%s", low, high, suffix);
+  }
+}
+
+// "34-41 HP (52-63%)"
+void ExactText(const DamageEstimate &e, int maxHp, char *out, size_t size) {
+  char percent[24];
+  PercentText(e, maxHp, percent, sizeof(percent));
+  if (e.low == e.high) {
+    snprintf(out, size, "%d HP%s (%s)", e.low, e.hits == 0 ? " a hit" : "", percent);
+  } else {
+    snprintf(out, size, "%d-%d HP%s (%s)", e.low, e.high, e.hits == 0 ? " a hit" : "", percent);
+  }
+}
+
+// Who moves first between two battlers using moves of the same priority, as
+// BattleSystem_CompareBattlerSpeed: 1 a, -1 b, 0 a speed tie (decided at random). Quick
+// Claw and Custap Berry aren't counted.
+int FasterOf(const GearBattler &a, const GearBattler &b) {
+  int order = a.speed > b.speed ? 1 : (a.speed < b.speed ? -1 : 0);
+  // Lagging Tail (Full Incense), then Stall: the holder goes last, or if both have it the
+  // slower one goes first. Otherwise Trick Room puts the slower one first.
+  for (int kind = 2; kind >= 1; kind--) {
+    const bool aLast = a.movesLast == kind;
+    const bool bLast = b.movesLast == kind;
+    if (aLast && bLast) {
+      return -order;
+    }
+    if (aLast != bLast) {
+      return aLast ? -1 : 1;
+    }
+  }
+  return sBattle.trickRoom ? -order : order;
+}
+
 // The player's Pokemon whose moves to show: the one picking a command (or the last one
 // that did), otherwise the first one still standing
 int ActiveBattler() {
@@ -902,8 +984,9 @@ void DrawOpponentCard(int battler, const char *side, ImVec2 size) {
   ImGui::Dummy(size);
 }
 
-// One of the active Pokemon's moves and how it fares against each opponent
-void DrawBattleMove(const GearMove &move, const int *opponents, int opponentCount, ImVec2 size) {
+// One of the active Pokemon's moves and how it fares against each opponent: the type
+// matchup and, with the guide on, the damage it does (and whether it knocks them out)
+void DrawBattleMove(int attacker, int slot, const GearMove &move, const int *opponents, int opponentCount, ImVec2 size) {
   ImDrawList *draw = ImGui::GetWindowDrawList();
   ImVec2 pos = ImGui::GetCursorScreenPos();
   const float pad = S(8.0f);
@@ -920,7 +1003,21 @@ void DrawBattleMove(const GearMove &move, const int *opponents, int opponentCoun
   draw->AddRectFilled(pos, ImVec2(pos.x + S(7.0f), pos.y + size.y), TypeColor(move.type), S(10.0f),
                       ImDrawFlags_RoundCornersLeft);
   const float x = pos.x + S(7.0f) + pad;
-  TextAt(draw, sBold, S(15.0f), ImVec2(x, pos.y + S(5.0f)), kText, Gear_MoveName(move.id));
+  const char *name = Gear_MoveName(move.id);
+  TextAt(draw, sBold, S(15.0f), ImVec2(x, pos.y + S(5.0f)), kText, name);
+
+  // Priority (moves first or last whatever the speed)
+  int priority = 0;
+  if (attacker >= 0 && attacker < GEAR_BATTLERS_MAX && slot >= 0 && slot < 4 &&
+      sBattle.battlers[attacker].moves[slot].id == move.id) {
+    priority = sBattle.battlers[attacker].movePriority[slot];
+  }
+  if (priority != 0 && discovery != GEAR_DISCOVERY_VANILLA) {
+    char text[8];
+    snprintf(text, sizeof(text), "%+d", priority);
+    const float nameWidth = TextSize(sBold, S(15.0f), name).x;
+    TextAt(draw, sBold, S(13.0f), ImVec2(x + nameWidth + S(6.0f), pos.y + S(6.5f)), priority > 0 ? kGood : kResisted, text);
+  }
 
   char pp[16];
   snprintf(pp, sizeof(pp), "%d/%d", move.pp, move.maxPp);
@@ -939,29 +1036,106 @@ void DrawBattleMove(const GearMove &move, const int *opponents, int opponentCoun
     TextAt(draw, sRegular, S(13.0f), ImVec2(x, line2), kTextDim, info);
   } else if (opponentCount == 1) {
     const GearBattler &target = sBattle.battlers[opponents[0]];
+    const DamageEstimate e = EstimateFor(attacker, slot, move.id, opponents[0]);
     Matchup matchup = MatchupFor(Gear_TypeEffectiveness(move.type, target.type1, target.type2));
+    if (e.known && e.high == 0) {
+      matchup = MatchupFor(0); // an ability or Levitate takes it
+    }
     char text[48];
-    snprintf(text, sizeof(text), "%s  %s", matchup.shortLabel, matchup.words);
+    if (e.known && e.high > 0) {
+      char percent[24];
+      PercentText(e, target.maxHp, percent, sizeof(percent));
+      snprintf(text, sizeof(text), "%s  %s", matchup.shortLabel, percent);
+    } else {
+      snprintf(text, sizeof(text), "%s  %s", matchup.shortLabel, matchup.words);
+    }
     TextAt(draw, sBold, S(13.0f), ImVec2(x, line2), matchup.color, text);
+    if (e.ko || e.maybeKo) {
+      const char *label = e.ko ? "KO" : "KO?";
+      const float badgeWidth = TextSize(sBold, S(12.0f), label).x + S(12.0f) * 0.7f;
+      Badge(draw, ImVec2(pos.x + size.x - pad - badgeWidth, line2), label, e.ko ? kGood : IM_COL32(176, 140, 40, 255),
+            S(12.0f));
+    }
   } else {
     float tx = x;
     const char *sides[2] = {"L", "R"};
     for (int i = 0; i < opponentCount; i++) {
       const GearBattler &target = sBattle.battlers[opponents[i]];
-      char text[16];
+      char text[32];
+      ImU32 color = kTextDim;
       if (target.hp == 0) {
         snprintf(text, sizeof(text), "%s -", sides[i]);
-        TextAt(draw, sBold, S(13.0f), ImVec2(tx, line2), kTextDim, text);
       } else {
+        const DamageEstimate e = EstimateFor(attacker, slot, move.id, opponents[i]);
         Matchup matchup = MatchupFor(Gear_TypeEffectiveness(move.type, target.type1, target.type2));
-        snprintf(text, sizeof(text), "%s %s", sides[i], matchup.shortLabel);
-        TextAt(draw, sBold, S(13.0f), ImVec2(tx, line2), matchup.color, text);
+        if (e.known && e.high == 0) {
+          matchup = MatchupFor(0);
+        }
+        color = matchup.color;
+        if (e.ko) {
+          snprintf(text, sizeof(text), "%s %s KO", sides[i], matchup.shortLabel);
+          color = kGood;
+        } else if (e.known && e.high > 0) {
+          char percent[24];
+          PercentText(e, target.maxHp, percent, sizeof(percent));
+          snprintf(text, sizeof(text), "%s %s %s", sides[i], matchup.shortLabel, percent);
+        } else {
+          snprintf(text, sizeof(text), "%s %s", sides[i], matchup.shortLabel);
+        }
       }
-      tx += TextSize(sBold, S(13.0f), text).x + S(14.0f);
+      TextAt(draw, sBold, S(13.0f), ImVec2(tx, line2), color, text);
+      tx += TextSize(sBold, S(13.0f), text).x + S(12.0f);
     }
   }
 
   ImGui::Dummy(size);
+}
+
+// Who moves first against each opponent (same priority): a line above the moves
+void DrawTurnOrder(int mineIndex, const int *opponents, int opponentCount) {
+  if (Discovery() == GEAR_DISCOVERY_VANILLA || mineIndex < 0 || mineIndex >= GEAR_BATTLERS_MAX) {
+    return;
+  }
+  const GearBattler &mine = sBattle.battlers[mineIndex];
+  if (!mine.present || mine.hp == 0) {
+    return;
+  }
+  const bool exact = Discovery() == GEAR_DISCOVERY_EVERYTHING;
+  char text[160];
+  size_t used = 0;
+  text[0] = '\0';
+  ImU32 color = kTextDim;
+  int shown = 0;
+  const char *sides[2] = {"L", "R"};
+  for (int i = 0; i < opponentCount; i++) {
+    const GearBattler &foe = sBattle.battlers[opponents[i]];
+    if (foe.hp == 0) {
+      continue;
+    }
+    const int order = FasterOf(mine, foe);
+    const char *what = order > 0 ? "you first" : (order < 0 ? "they go first" : "speed tie");
+    if (opponentCount == 1) {
+      what = order > 0 ? "You move first" : (order < 0 ? "They move first" : "Speed tie (random)");
+      color = order > 0 ? kGood : (order < 0 ? kResisted : kWarn);
+    }
+    if (used < sizeof(text)) {
+      used += snprintf(text + used, sizeof(text) - used, "%s%s%s%s", shown ? "   " : "",
+                       opponentCount > 1 ? sides[i] : "", opponentCount > 1 ? ": " : "", what);
+    }
+    if (exact && used < sizeof(text)) {
+      used += snprintf(text + used, sizeof(text) - used, " (%u vs %u)", (unsigned)mine.speed, (unsigned)foe.speed);
+    }
+    shown++;
+  }
+  if (shown == 0) {
+    return;
+  }
+  if (sBattle.trickRoom && used < sizeof(text)) {
+    snprintf(text + used, sizeof(text) - used, "   Trick Room");
+  }
+  ImGui::PushFont(sBold, S(13.0f));
+  ImGui::TextColored(ImColor(color), "%s", text);
+  ImGui::PopFont();
 }
 
 void SectionLabel(const char *text) {
@@ -970,9 +1144,12 @@ void SectionLabel(const char *text) {
   ImGui::PopFont();
 }
 
-void DrawBattlerDetails(const GearBattler &b, bool showMoves) {
+// A battler's level, HP, stat changes, ability and item; with showMoves its moves, and
+// what each does to the targets
+void DrawBattlerDetails(int index, bool showMoves, const int *targets, int targetCount) {
+  const GearBattler &b = sBattle.battlers[index];
   const int discovery = Discovery();
-  ImGui::PushID(&b);
+  ImGui::PushID(index);
   ImGui::PushFont(sBold, S(16.0f));
   ImGui::TextUnformatted(b.nickname);
   ImGui::PopFont();
@@ -994,18 +1171,55 @@ void DrawBattlerDetails(const GearBattler &b, bool showMoves) {
     ImGui::TextColored(ImColor(kTextDim), "Ability: %s   Item: %s", Gear_AbilityName(b.ability),
                        b.heldItem ? Gear_ItemName(b.heldItem) : "None");
   }
-  if (showMoves && ImGui::BeginTable("moves", 2, ImGuiTableFlags_SizingStretchSame)) {
+  if (discovery == GEAR_DISCOVERY_EVERYTHING && b.hp > 0) {
+    ImGui::TextColored(ImColor(kTextDim), "Speed in battle: %u%s", (unsigned)b.speed,
+                       b.movesLast == 2 ? " (moves last: item)" : (b.movesLast == 1 ? " (moves last: Stall)" : ""));
+  }
+  if (showMoves) {
+    const char *sides[2] = {"L", "R"};
     for (int m = 0; m < 4; m++) {
       const GearMove &move = b.moves[m];
       if (move.id == 0) {
         continue;
       }
-      ImGui::TableNextColumn();
       ImGui::TextColored(ImColor(TypeColor(move.type)), "%s", Gear_MoveName(move.id));
       ImGui::SameLine();
       ImGui::TextColored(ImColor(kTextDim), "%d/%d", move.pp, move.maxPp);
+      if (b.movePriority[m] != 0) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImColor(b.movePriority[m] > 0 ? kGood : kResisted), "%+d", b.movePriority[m]);
+      }
+      if (b.hp == 0 || discovery == GEAR_DISCOVERY_VANILLA) {
+        continue;
+      }
+      // What it does to each target
+      for (int t = 0; t < targetCount; t++) {
+        const GearBattler &target = sBattle.battlers[targets[t]];
+        if (!target.present || target.hp == 0) {
+          continue;
+        }
+        const DamageEstimate e = EstimateFor(index, m, move.id, targets[t]);
+        if (!e.known) {
+          continue;
+        }
+        char text[64];
+        const bool exact = discovery == GEAR_DISCOVERY_EVERYTHING || !target.enemy;
+        if (e.high == 0) {
+          snprintf(text, sizeof(text), "no effect");
+        } else if (exact) {
+          ExactText(e, target.maxHp, text, sizeof(text));
+        } else {
+          PercentText(e, target.maxHp, text, sizeof(text));
+        }
+        ImGui::SameLine(0.0f, S(10.0f));
+        if (targetCount > 1) {
+          ImGui::TextColored(ImColor(kTextDim), "%s", sides[t]);
+          ImGui::SameLine(0.0f, S(4.0f));
+        }
+        ImGui::TextColored(ImColor(e.ko ? kGood : (e.maybeKo ? kWarn : kText)), "%s%s", text,
+                           e.ko ? " KO" : (e.maybeKo ? " may KO" : ""));
+      }
     }
-    ImGui::EndTable();
   }
   ImGui::PopID();
 }
@@ -1072,14 +1286,14 @@ void PressOverlay(ImVec2 pos, ImVec2 size, int button, bool enabled) {
 }
 
 // A tappable move of the move menu, with its matchups
-void MoveMenuButton(int button, const GearMove &move, const int *opponents, int opponentCount, ImVec2 size) {
+void MoveMenuButton(int button, int attacker, const GearMove &move, const int *opponents, int opponentCount, ImVec2 size) {
   ImVec2 pos = ImGui::GetCursorScreenPos();
   ImGui::PushID(button);
   const bool pressed = Tap("move", size);
   ImGui::PopID();
   const bool held = ImGui::IsItemActive() && !sDragging;
   ImGui::SetCursorScreenPos(pos);
-  DrawBattleMove(move, opponents, opponentCount, size);
+  DrawBattleMove(attacker, button - 1, move, opponents, opponentCount, size);
   if (held) {
     ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(255, 255, 255, 30),
                                               S(10.0f));
@@ -1152,11 +1366,12 @@ bool DrawBattleControls(const int *opponents, int opponentCount) {
     break;
   case GEAR_MENU_MOVES: {
     const float half = (width - gap) * 0.5f;
+    DrawTurnOrder(m.battler, opponents, opponentCount);
     for (int i = 0; i < 4; i++) {
       if (i % 2 != 0) {
         ImGui::SameLine(0.0f, gap);
       }
-      MoveMenuButton(i + 1, m.moves[i], opponents, opponentCount, ImVec2(half, S(60.0f)));
+      MoveMenuButton(i + 1, m.battler, m.moves[i], opponents, opponentCount, ImVec2(half, S(60.0f)));
     }
     MenuButton(0, "Cancel", nullptr, IM_COL32(110, 118, 134, 255), ImVec2(width, S(44.0f)));
     break;
@@ -1240,21 +1455,23 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
     // The active Pokemon's moves, two by two
     const GearBattler &mine = sBattle.battlers[active];
     const float moveWidth = (width - gap) * 0.5f;
+    DrawTurnOrder(active, opponents, opponentCount);
     for (int m = 0; m < 4; m++) {
       if (m % 2 != 0) {
         ImGui::SameLine(0.0f, gap);
       }
       ImGui::PushID(m);
-      DrawBattleMove(mine.moves[m], opponents, opponentCount, ImVec2(moveWidth, S(44.0f)));
+      DrawBattleMove(active, m, mine.moves[m], opponents, opponentCount, ImVec2(moveWidth, S(44.0f)));
       ImGui::PopID();
     }
   }
 
   if (active >= 0) {
-    // Below the fold in the split view: the active Pokemon itself
+    // Below the fold in the split view: the active Pokemon itself, and with everything
+    // revealed its moves' exact damage
     ImGui::Dummy(ImVec2(0, S(4.0f)));
     SectionLabel("Your Pokemon");
-    DrawBattlerDetails(sBattle.battlers[active], false);
+    DrawBattlerDetails(active, discovery == GEAR_DISCOVERY_EVERYTHING, opponents, opponentCount);
   }
 
   // What the opponents are up to
@@ -1269,7 +1486,15 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
       SectionLabel(opponentCount > 1 ? "Opponents" : "Opponent");
       labelled = true;
     }
-    DrawBattlerDetails(b, discovery == GEAR_DISCOVERY_EVERYTHING);
+    // Their moves against your side
+    int targets[2];
+    int targetCount = 0;
+    for (int t = 0; t < GEAR_BATTLERS_MAX && targetCount < 2; t += 2) {
+      if (sBattle.battlers[t].present && !sBattle.battlers[t].enemy) {
+        targets[targetCount++] = t;
+      }
+    }
+    DrawBattlerDetails(opponents[i], discovery == GEAR_DISCOVERY_EVERYTHING, targets, targetCount);
   }
 
   // The opposing team, with everything revealed

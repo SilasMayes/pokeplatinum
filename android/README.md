@@ -134,6 +134,22 @@ Pokegear and Kanto Gear:
   types, HP and status, and your Pokemon; further down: stat changes, abilities and
   items. Turn this off with *Settings > Gear > Battle menu on the Gear* (the Gear then
   shows the information only, beside the DS screen).
+
+  **Damage and turn order.** Each move also shows the damage it does, as a share of
+  the target's HP (`x2 52-63%`), with a **KO** tag when it knocks the target out
+  whatever the roll and **KO?** when it might. The numbers come from the game's own
+  damage formula, so they count stat changes, abilities (Technician, Thick Fat,
+  Levitate, Volt Absorb, ...), held items (Choice Band, type-boosting items and plates, Life Orb,
+  Expert Belt, resist berries, ...), weather, screens, burns, STAB and the type chart.
+  Only the random roll is left (the range) and critical hits are not counted.
+  Multi-hit moves show the whole move (or one hit with `x2-5`), moves with a set amount
+  (Seismic Toss, Super Fang, ...) show that, and moves whose power the battle only
+  knows when they're used (Magnitude, Present, Fling, Counter, ...) show the matchup
+  only. A line above the moves says who moves first between same-priority moves
+  (speed with its stat stage, items, abilities, paralysis, Tailwind and Trick Room,
+  Lagging Tail and Stall; not Quick Claw), and moves with priority show it (`+1`).
+  With *Everything* revealed, the lists further down give exact damage in HP and the
+  speeds, and also what the opponent's moves do to your Pokemon.
 * **Party**: HP, status and level at a glance; tap a Pokemon for its moves, stats,
   ability, nature and item.
 * **Area**: the wild Pokemon of the route you are on for the current time of day
@@ -141,9 +157,10 @@ Pokegear and Kanto Gear:
   which ones you have caught.
 * **Trainer**: money, badges, Pokedex counts, play time and the save slot.
 * **Settings**: how much the Gear reveals. *Vanilla* shows only what the game shows,
-  *Guide* (default) adds the encounter guide and type matchups but hides species you
-  have never seen, *Everything* also shows hidden values (IVs/EVs, the opponents'
-  abilities, items, moves and whole team).
+  *Guide* (default) adds the encounter guide, type matchups, damage estimates and turn
+  order but hides species you have never seen, *Everything* also shows hidden values
+  (IVs/EVs, exact damage and speeds, the opponents' abilities, items, moves and whole
+  team).
 
 Tap **Full** (or press **L3**) to give the Gear the whole lower panel and **Split** to
 bring the DS touch screen back. Turn the Gear off

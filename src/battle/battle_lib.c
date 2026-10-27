@@ -8229,3 +8229,300 @@ int Move_CalcVariableType(BattleSystem *battleSys, BattleContext *battleCtx, Pok
 
     return type;
 }
+
+#ifdef SDK_PORT
+// The Gear companion's turn order hint: a battler's speed as the turn order uses it
+// (stat stage, Simple, weather abilities, speed items, Quick Feet / paralysis, Slow Start,
+// Unburden, Tailwind), without the random parts or any change to the battle
+u32 BattleLib_PortEffectiveSpeed(BattleSystem *battleSys, BattleContext *battleCtx, int battler)
+{
+    const int ability = Battler_Ability(battleCtx, battler);
+    const u8 itemEffect = Battler_HeldItemEffect(battleCtx, battler);
+    int stage = CompareSpeed_ApplySimple(battleCtx, battler, battleCtx->battleMons[battler].statBoosts[BATTLE_STAT_SPEED]);
+    u32 speed = battleCtx->battleMons[battler].speed * sStatStageBoosts[stage].numerator / sStatStageBoosts[stage].denominator;
+
+    if (NO_CLOUD_NINE) {
+        if ((ability == ABILITY_SWIFT_SWIM && WEATHER_IS_RAIN) || (ability == ABILITY_CHLOROPHYLL && WEATHER_IS_SUN)) {
+            speed *= 2;
+        }
+    }
+
+    for (int i = 0; i < NELEMS(sSpeedHalvingItemEffects); i++) {
+        if (BattleSystem_GetItemData(battleCtx, battleCtx->battleMons[battler].heldItem, ITEM_PARAM_HOLD_EFFECT) == sSpeedHalvingItemEffects[i]) {
+            speed /= 2;
+            break;
+        }
+    }
+
+    if (itemEffect == HOLD_EFFECT_CHOICE_SPEED) {
+        speed = speed * 15 / 10;
+    }
+    if (itemEffect == HOLD_EFFECT_DITTO_SPEED_UP && battleCtx->battleMons[battler].species == SPECIES_DITTO) {
+        speed *= 2;
+    }
+    if (ability == ABILITY_QUICK_FEET && (battleCtx->battleMons[battler].status & MON_CONDITION_ANY)) {
+        speed = speed * 15 / 10;
+    } else if (battleCtx->battleMons[battler].status & MON_CONDITION_PARALYSIS) {
+        speed /= 4;
+    }
+    if (ability == ABILITY_SLOW_START
+        && battleCtx->totalTurns - battleCtx->battleMons[battler].moveEffectsData.slowStartTurnNumber < 5) {
+        speed /= 2;
+    }
+    if (ability == ABILITY_UNBURDEN
+        && battleCtx->battleMons[battler].moveEffectsData.canUnburden
+        && battleCtx->battleMons[battler].heldItem == ITEM_NONE) {
+        speed *= 2;
+    }
+    if (battleCtx->sideConditionsMask[BattleSystem_GetBattlerSide(battleSys, battler)] & SIDE_CONDITION_TAILWIND) {
+        speed *= 2;
+    }
+    return speed;
+}
+
+int BattleScript_PortFlailPower(int curHP, int maxHP);
+int BattleScript_PortWeightPower(int weight);
+int BattleScript_PortTrumpCardPower(int ppAfterUse);
+
+// The power a move's script would work out before calculating the damage, without running
+// it: the power to use (0: the move's own), *powerMul (10: x1), *fixedDamage (>= 0 for
+// moves that deal a set amount) and *hits (0: 2 to 5). -1: no estimate (random, or it
+// depends on what happens during the turn).
+static int PortMovePower(BattleSystem *battleSys, BattleContext *battleCtx, int attacker, int defender, int move, int *powerMul, int *fixedDamage, int *hits)
+{
+    BattleMon *atk = &battleCtx->battleMons[attacker];
+    BattleMon *def = &battleCtx->battleMons[defender];
+    int power;
+
+    *powerMul = 10;
+    *fixedDamage = -1;
+    *hits = 1;
+
+    switch (MOVE_DATA(move).effect) {
+    case BATTLE_EFFECT_DOUBLE_POWER_WHEN_STATUSED:
+        if (atk->status & MON_CONDITION_FACADE_BOOST) {
+            *powerMul = 20;
+        }
+        return 0;
+    case BATTLE_EFFECT_DOUBLE_POWER_WHEN_BELOW_HALF:
+        if (def->curHP <= def->maxHP / 2) {
+            *powerMul = 20;
+        }
+        return 0;
+    case BATTLE_EFFECT_DOUBLE_POWER_HEAL_SLEEP:
+        if ((def->statusVolatile & VOLATILE_CONDITION_SUBSTITUTE) == FALSE && (def->status & MON_CONDITION_SLEEP)) {
+            *powerMul = 20;
+        }
+        return 0;
+    case BATTLE_EFFECT_DOUBLE_POWER_AND_CURE_PARALYSIS:
+        if ((def->statusVolatile & VOLATILE_CONDITION_SUBSTITUTE) == FALSE && (def->status & MON_CONDITION_PARALYSIS)) {
+            *powerMul = 20;
+        }
+        return 0;
+    case BATTLE_EFFECT_POWER_BASED_ON_FRIENDSHIP:
+        return atk->friendship * 10 / 25;
+    case BATTLE_EFFECT_POWER_BASED_ON_LOW_FRIENDSHIP:
+        return (255 - atk->friendship) * 10 / 25;
+    case BATTLE_EFFECT_DECREASE_POWER_WITH_LESS_USER_HP:
+        power = MOVE_DATA(move).power * atk->curHP / (atk->maxHP ? atk->maxHP : 1);
+        return power ? power : 1;
+    case BATTLE_EFFECT_INCREASE_POWER_WITH_LESS_HP:
+        return BattleScript_PortFlailPower(atk->curHP, atk->maxHP);
+    case BATTLE_EFFECT_INCREASE_POWER_WITH_WEIGHT:
+        return BattleScript_PortWeightPower(def->weight);
+    case BATTLE_EFFECT_POWER_BASED_ON_LOW_SPEED: {
+        u32 attackerSpeed = BattleLib_PortEffectiveSpeed(battleSys, battleCtx, attacker);
+        power = 1 + 25 * BattleLib_PortEffectiveSpeed(battleSys, battleCtx, defender) / (attackerSpeed ? attackerSpeed : 1);
+        return power > 150 ? 150 : power;
+    }
+    case BATTLE_EFFECT_RANDOM_POWER_BASED_ON_IVS:
+        power = ((atk->hpIV & 2) >> 1)
+            | (atk->attackIV & 2)
+            | ((atk->defenseIV & 2) << 1)
+            | ((atk->speedIV & 2) << 2)
+            | ((atk->spAttackIV & 2) << 3)
+            | ((atk->spDefenseIV & 2) << 4);
+        return power * 40 / 63 + 30;
+    case BATTLE_EFFECT_INCREASE_POWER_WITH_MORE_HP:
+        return 1 + 120 * def->curHP / (def->maxHP ? def->maxHP : 1);
+    case BATTLE_EFFECT_INCREASE_POWER_WITH_MORE_STAT_UP: {
+        int boosts = 0;
+        for (int i = BATTLE_STAT_HP; i < BATTLE_STAT_MAX; i++) {
+            if (def->statBoosts[i] > DEFAULT_STAT_STAGE) {
+                boosts += def->statBoosts[i] - DEFAULT_STAT_STAGE;
+            }
+        }
+        power = 60 + 20 * boosts;
+        return power > 200 ? 200 : power;
+    }
+    case BATTLE_EFFECT_CHANGE_TYPE_WITH_WEATHER:
+        if (NO_CLOUD_NINE && (battleCtx->fieldConditionsMask & FIELD_CONDITION_WEATHER)) {
+            return MOVE_DATA(move).power * 2;
+        }
+        return 0;
+    case BATTLE_EFFECT_HIGHER_POWER_WHEN_LOW_PP:
+        for (int i = 0; i < LEARNED_MOVES_MAX; i++) {
+            if (atk->moves[i] == move) {
+                return BattleScript_PortTrumpCardPower(atk->ppCur[i] - 1);
+            }
+        }
+        return -1;
+    case BATTLE_EFFECT_NATURAL_GIFT:
+        power = Battler_NaturalGiftPower(battleCtx, attacker);
+        return power ? power : -1;
+    case BATTLE_EFFECT_HIT_TWICE:
+    case BATTLE_EFFECT_POISON_MULTI_HIT:
+        *hits = 2;
+        return 0;
+    case BATTLE_EFFECT_MULTI_HIT:
+        *hits = Battler_Ability(battleCtx, attacker) == ABILITY_SKILL_LINK ? 5 : 0;
+        return 0;
+    case BATTLE_EFFECT_HIT_THREE_TIMES:
+        // Hits of 10, 20 and 30: about three of 20
+        *hits = 3;
+        return 20;
+    case BATTLE_EFFECT_LEVEL_DAMAGE_FLAT:
+        *fixedDamage = atk->level;
+        return 0;
+    case BATTLE_EFFECT_40_DAMAGE_FLAT:
+        *fixedDamage = 40;
+        return 0;
+    case BATTLE_EFFECT_20_DAMAGE_FLAT:
+        *fixedDamage = 20;
+        return 0;
+    case BATTLE_EFFECT_HALVE_HP:
+        *fixedDamage = def->curHP / 2 ? def->curHP / 2 : 1;
+        return 0;
+    case BATTLE_EFFECT_SET_HP_EQUAL_TO_USER:
+        if (def->curHP <= atk->curHP) {
+            return -1; // fails
+        }
+        *fixedDamage = def->curHP - atk->curHP;
+        return 0;
+    }
+
+    // Anything else whose power the battle works out as it goes (Magnitude, Present,
+    // Fling, Spit Up, Psywave, one-hit KOs, Counter...)
+    return MOVE_DATA(move).power <= 1 ? -1 : 0;
+}
+
+// The Gear companion's damage estimate: the damage range (no critical hit) of a move
+// against a defender, as the battle works it out (the same functions, without the random
+// roll or any change to the battle). *hits: 1, 2, 3 or 5 (the range is per hit), or 0
+// for 2 to 5. FALSE for status moves and moves without an estimate (see PortMovePower).
+BOOL BattleLib_PortEstimateDamage(BattleSystem *battleSys, BattleContext *battleCtx, int attacker, int defender, int move, int *minDamage, int *maxDamage, int *hits)
+{
+    if (move == MOVE_NONE || move >= MAX_MOVES || MOVE_DATA(move).class == CLASS_STATUS || MOVE_DATA(move).power == 0) {
+        return FALSE;
+    }
+
+    int powerMul, fixedDamage;
+    int power = PortMovePower(battleSys, battleCtx, attacker, defender, move, &powerMul, &fixedDamage, hits);
+    if (power < 0) {
+        return FALSE;
+    }
+
+    Pokemon *mon = BattleSystem_GetPartyPokemon(battleSys, attacker, battleCtx->selectedPartySlot[attacker]);
+    int type = mon != NULL ? Move_CalcVariableType(battleSys, battleCtx, mon, move) : TYPE_NORMAL;
+    if (type == TYPE_NORMAL) {
+        type = MOVE_DATA(move).type;
+    }
+    if (Battler_Ability(battleCtx, attacker) == ABILITY_NORMALIZE) {
+        type = TYPE_NORMAL;
+    }
+
+    // Leftovers of the last move used (its power multiplier, ignoring the type chart)
+    // aren't this one's: set them as a fresh move would have them, and put them back after
+    const u16 savedPowerMul = battleCtx->powerMul;
+    const u32 savedStatus = battleCtx->battleStatusMask;
+    battleCtx->powerMul = powerMul;
+    battleCtx->battleStatusMask &= ~(SYSCTL_IGNORE_TYPE_CHECKS | SYSCTL_IGNORE_IMMUNITIES);
+
+    int damage = 0;
+    if (fixedDamage < 0) {
+        damage = BattleSystem_CalcMoveDamage(battleSys,
+            battleCtx,
+            move,
+            battleCtx->sideConditionsMask[BattleSystem_GetBattlerSide(battleSys, defender)],
+            battleCtx->fieldConditionsMask,
+            power,
+            type,
+            attacker,
+            defender,
+            1);
+
+        if (Battler_HeldItemEffect(battleCtx, attacker) == HOLD_EFFECT_HP_DRAIN_ON_ATK) {
+            damage = damage * (100 + Battler_HeldItemPower(battleCtx, attacker, 0)) / 100;
+        }
+        if (Battler_HeldItemEffect(battleCtx, attacker) == HOLD_EFFECT_BOOST_REPEATED) {
+            damage = damage * (10 + battleCtx->battleMons[attacker].moveEffectsData.metronomeTurns) / 10;
+        }
+    }
+
+    // The random roll takes 0-15% off before the type chart
+    int lowest = damage * 85 / 100;
+    if (damage != 0 && lowest == 0) {
+        lowest = 1;
+    }
+
+    u32 status = 0;
+    int high = BattleSystem_ApplyTypeChart(battleSys, battleCtx, move, type, attacker, defender, damage, &status);
+    const u32 highStatus = status;
+    status = 0;
+    int low = BattleSystem_ApplyTypeChart(battleSys, battleCtx, move, type, attacker, defender, lowest, &status);
+
+    battleCtx->powerMul = savedPowerMul;
+    battleCtx->battleStatusMask = savedStatus;
+
+    // Abilities that take the hit instead (as BattleSystem_TriggerImmunityAbility)
+    BOOL absorbed = FALSE;
+    if ((type == TYPE_ELECTRIC
+            && (Battler_IgnorableAbility(battleCtx, attacker, defender, ABILITY_VOLT_ABSORB) == TRUE
+                || Battler_IgnorableAbility(battleCtx, attacker, defender, ABILITY_MOTOR_DRIVE) == TRUE))
+        || (type == TYPE_WATER
+            && (Battler_IgnorableAbility(battleCtx, attacker, defender, ABILITY_WATER_ABSORB) == TRUE
+                || Battler_IgnorableAbility(battleCtx, attacker, defender, ABILITY_DRY_SKIN) == TRUE))
+        || (type == TYPE_FIRE
+            && Battler_IgnorableAbility(battleCtx, attacker, defender, ABILITY_FLASH_FIRE) == TRUE
+            && (battleCtx->battleMons[defender].status & MON_CONDITION_FREEZE) == FALSE)) {
+        absorbed = TRUE;
+    }
+    if (Battler_IgnorableAbility(battleCtx, attacker, defender, ABILITY_SOUNDPROOF) == TRUE) {
+        for (int i = 0; i < NELEMS(sSoundMoves); i++) {
+            if (sSoundMoves[i] == move) {
+                absorbed = TRUE;
+                break;
+            }
+        }
+    }
+
+    if (absorbed || (highStatus & MOVE_STATUS_IMMUNE)) {
+        *minDamage = *maxDamage = 0;
+        return TRUE;
+    }
+
+    if (fixedDamage >= 0) {
+        *minDamage = *maxDamage = fixedDamage;
+        return TRUE;
+    }
+
+    // Type-resist berries halve a super effective hit (Chilan Berry: any Normal-type hit),
+    // as subscript_type_resist_berry
+    static const u8 resistTypes[] = {
+        TYPE_FIRE, TYPE_WATER, TYPE_ELECTRIC, TYPE_GRASS, TYPE_ICE, TYPE_FIGHTING, TYPE_POISON, TYPE_GROUND,
+        TYPE_FLYING, TYPE_PSYCHIC, TYPE_BUG, TYPE_ROCK, TYPE_GHOST, TYPE_DRAGON, TYPE_DARK, TYPE_STEEL
+    };
+    const int defenderItem = Battler_HeldItemEffect(battleCtx, defender);
+    if ((defenderItem == HOLD_EFFECT_WEAKEN_NORMAL && type == TYPE_NORMAL)
+        || (defenderItem >= HOLD_EFFECT_WEAKEN_SE_FIRE && defenderItem <= HOLD_EFFECT_WEAKEN_SE_STEEL
+            && (highStatus & MOVE_STATUS_SUPER_EFFECTIVE)
+            && resistTypes[defenderItem - HOLD_EFFECT_WEAKEN_SE_FIRE] == type)) {
+        high /= 2;
+        low /= 2;
+    }
+
+    *minDamage = low > 0 ? low : 1;
+    *maxDamage = high > 0 ? high : 1;
+    return TRUE;
+}
+#endif

@@ -119,6 +119,15 @@ typedef struct GearBattler {
     u16 heldItem;
     s8 statStages[8];    // BATTLE_STAT_*, -6..+6 (index 0, HP, is unused)
     GearMove moves[4];
+    s8 movePriority[4];
+    u32 speed;           // speed as the turn order uses it (stages, items, abilities...)
+    u8 movesLast;        // last among the same priority: 2 Lagging Tail or Full Incense, 1 Stall
+    // Each move's damage against each battler (no critical hit); -1: not worked out
+    // (status moves, random or turn-dependent power, fainted or same-side targets).
+    // Per hit: moveHits is how many (0: 2 to 5).
+    s16 damageMin[4][GEAR_BATTLERS_MAX];
+    s16 damageMax[4][GEAR_BATTLERS_MAX];
+    u8 moveHits[4];
 } GearBattler;
 
 typedef struct GearBattleMon {
@@ -133,6 +142,7 @@ typedef struct GearBattle {
     BOOL trainer;        // a trainer battle (as opposed to a wild Pokemon)
     BOOL doubles;
     int choosing;        // battler whose command the player is picking, -1 if none
+    BOOL trickRoom;      // slower Pokemon move first
     GearBattler battlers[GEAR_BATTLERS_MAX]; // by battler number (even: player side)
     int enemyPartyCount;
     GearBattleMon enemyParty[GEAR_PARTY_MAX * 2];

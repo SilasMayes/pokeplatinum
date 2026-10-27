@@ -324,8 +324,10 @@ void DrawGear()
     static const char *const kLevels[] = { "Vanilla", "Guide", "Everything" };
     static const char *const kHelp[] = {
         "Only what the game itself shows: no encounter guide or hidden values.",
-        "Adds the encounter guide and type matchups; species you haven't seen stay hidden.",
-        "Also hidden values: IVs/EVs, the opponents' abilities, items and whole team.",
+        "Adds the encounter guide, type matchups, damage estimates (% of HP) and who moves first; "
+        "species you haven't seen stay hidden.",
+        "Also hidden values: IVs/EVs, exact damage and speed, the opponents' abilities, items, moves and "
+        "whole team.",
     };
     int level = config->gearDiscovery;
     if (level < 0 || level > 2) {

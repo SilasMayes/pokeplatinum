@@ -14,13 +14,16 @@
 #include "constants/species.h"
 #include "constants/string.h"
 #include "constants/wild_encounters.h"
+#include "generated/abilities.h"
 #include "generated/battle_boot_states.h"
+#include "generated/item_hold_effects.h"
 #include "generated/move_attributes.h"
 #include "generated/text_banks.h"
 #include "generated/time_of_day.h"
 
 #include "battle/battle_context.h"
 #include "battle/battle_display.h"
+#include "battle/battle_lib.h"
 #include "battle/battle_mon.h"
 #include "battle/battle_subscreen.h"
 #include "battle/battle_system.h"
@@ -49,6 +52,9 @@
 int BattleLib_SingleTypeMultiplier(u8 attackType, u8 defenderType);
 // Implemented in src/battle/battle_controller_player.c (port only)
 int BattleController_PortChoosingBattler(BattleSystem *battleSys);
+// Implemented in src/battle/battle_lib.c (port only)
+u32 BattleLib_PortEffectiveSpeed(BattleSystem *battleSys, BattleContext *battleCtx, int battler);
+BOOL BattleLib_PortEstimateDamage(BattleSystem *battleSys, BattleContext *battleCtx, int attacker, int defender, int move, int *minDamage, int *maxDamage, int *hits);
 
 // --- names -------------------------------------------------------------------------
 
@@ -726,6 +732,43 @@ BOOL Gear_GetBattle(GearBattle *out)
             move->category = data->category;
             move->pp = mon->ppCur[m];
             move->maxPp = MoveTable_CalcMaxPP(move->id, mon->ppUps[m]);
+        }
+    }
+
+    // Turn order and damage
+    out->trickRoom = (battleCtx->fieldConditionsMask & FIELD_CONDITION_TRICK_ROOM) != 0;
+    for (int i = 0; i < maxBattlers; i++) {
+        GearBattler *gb = &out->battlers[i];
+        for (int m = 0; m < 4; m++) {
+            for (int t = 0; t < GEAR_BATTLERS_MAX; t++) {
+                gb->damageMin[m][t] = gb->damageMax[m][t] = -1;
+            }
+        }
+        if (!gb->present || gb->hp == 0) {
+            continue;
+        }
+        gb->speed = BattleLib_PortEffectiveSpeed(sBattleSys, battleCtx, i);
+        gb->movesLast = Battler_HeldItemEffect(battleCtx, i) == HOLD_EFFECT_PRIORITY_DOWN
+            ? 2
+            : (Battler_Ability(battleCtx, i) == ABILITY_STALL ? 1 : 0);
+        for (int m = 0; m < 4; m++) {
+            gb->moveHits[m] = 1;
+            if (gb->moves[m].id == 0) {
+                continue;
+            }
+            gb->movePriority[m] = (s8)MoveTable_LoadParam(gb->moves[m].id, MOVEATTRIBUTE_PRIORTY);
+            for (int t = 0; t < maxBattlers; t++) {
+                const GearBattler *target = &out->battlers[t];
+                if (t == i || !target->present || target->hp == 0 || target->enemy == gb->enemy) {
+                    continue;
+                }
+                int low, high, hits;
+                if (BattleLib_PortEstimateDamage(sBattleSys, battleCtx, i, t, gb->moves[m].id, &low, &high, &hits)) {
+                    gb->damageMin[m][t] = (s16)(low > 32767 ? 32767 : low);
+                    gb->damageMax[m][t] = (s16)(high > 32767 ? 32767 : high);
+                    gb->moveHits[m] = (u8)hits;
+                }
+            }
         }
     }
 
