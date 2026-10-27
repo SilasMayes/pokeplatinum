@@ -299,6 +299,9 @@ void DrawGameplay()
         &config->enable60fpsSpeedFix, fps60);
     ConfigToggle("60 FPS in battles and menus too", "Everything off the overworld then runs twice as fast.",
         &config->enable60fpsEverywhere, fps60);
+    ConfigToggle("Draw every DS frame", "Battles and menus make a new picture every other DS frame; normally only "
+        "those are drawn, which halves the work there. Turn this on if something flickers.",
+        &config->drawEveryFrame);
 }
 
 // --- Gear ------------------------------------------------------------------------------------

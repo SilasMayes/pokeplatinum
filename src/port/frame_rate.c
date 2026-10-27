@@ -2,6 +2,7 @@
 #include "port/frame_rate.h"
 
 #include <nitro.h>
+#include <simulator/sim.h>
 #include <stdio.h>
 
 #include "field/field_system.h"
@@ -49,6 +50,14 @@ void FrameRate_Update(void)
 BOOL FrameRate_Is60Hz(void)
 {
     return s60Hz;
+}
+
+void FrameRate_BeforeFirstVBlank(void)
+{
+    const SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+    if (config == NULL || !config->drawEveryFrame) {
+        SIM_SkipNextFrame();
+    }
 }
 
 BOOL FrameRate_SpeedFixActive(void)

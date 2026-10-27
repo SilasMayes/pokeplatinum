@@ -188,6 +188,9 @@ void NitroMain(void)
              && !FrameRate_Is60Hz()
 #endif
             ) {
+#ifdef SDK_PORT
+                FrameRate_BeforeFirstVBlank();
+#endif
                 OS_WaitIrq(TRUE, OS_IE_V_BLANK);
                 gSystem.vblankCounter++;
             }

@@ -27,6 +27,11 @@ void FrameRate_Update(void);
 // This iteration runs the game logic at 60 Hz
 BOOL FrameRate_Is60Hz(void);
 
+// A 30 Hz iteration is about to wait for its first vblank. The frame shown then is
+// replaced by the one at the second before it can be seen, so it isn't drawn (half the
+// drawing in battles and menus), unless DrawEveryFrame is on.
+void FrameRate_BeforeFirstVBlank(void);
+
 // This iteration runs at 60 Hz and per-frame steps should be halved
 BOOL FrameRate_SpeedFixActive(void);
 
