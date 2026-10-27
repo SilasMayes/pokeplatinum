@@ -43,7 +43,8 @@ next page.
   choose at launch.
 * **Saves**: save slots, import / export, autosave, save now.
 * **Save editor**: see below.
-* **Gameplay**: instant text and HP/EXP bars, 60 FPS options, drawing every DS frame.
+* **Gameplay**: instant text and HP/EXP bars, field moves without HMs, 60 FPS options,
+  drawing every DS frame.
 * **Display**: 3D resolution, second display, layout, swap screens, vsync.
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
@@ -222,6 +223,17 @@ shorter.
 * Battles, menus and other scenes that run at 30 frames a second only draw the frames
   they show (half the drawing). *Settings > Gameplay > Draw every DS frame* draws the
   in-between ones too, should anything flicker.
+
+## Field moves without HMs
+
+On by default (*Settings > Gameplay > Field moves without HMs*). Once an HM is in your
+bag, and you have the badge the game asks for, its move works without teaching it to
+anyone: walk up to a tree, rock, boulder, rocky wall, water or waterfall and press A as
+usual. A Pokemon in your party that could learn the move does it (the first one that
+isn't an Egg if none could), with the usual message and cut-in. Fly (and the others,
+where they can be used) shows in that Pokemon's menu in the party screen. Owning the HM
+is what keeps the story in order: places the game blocks until you have a move are
+opened by the same HM as before.
 
 ## Controls
 

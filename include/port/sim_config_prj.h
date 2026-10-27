@@ -14,6 +14,7 @@ typedef struct {
     BOOL drawEveryFrame; // draw the in-between DS frames of 30 Hz scenes too (see port/frame_rate.h)
     BOOL instantText; // see port/speed_up.h
     BOOL instantBars;
+    BOOL hmFree; // field moves without HMs: see port/hm_free.h
 	BOOL enableAsserts; //Should asserts cause a communication error?
     BOOL breakDebuggerOnGfAssert; // When true, break the debugger when a GF_ASSERT fails
 

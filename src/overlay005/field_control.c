@@ -70,6 +70,10 @@
 #include "vars_flags.h"
 #include "wireless_manager.h"
 
+#ifdef SDK_PORT
+#include "port/hm_free.h"
+#endif
+
 static BOOL Field_CheckMapTransition(FieldSystem *fieldSystem, const FieldInput *input);
 static u16 Field_TileBehaviorToScript(FieldSystem *fieldSystem, u8 behavior);
 static BOOL Field_CheckWildEncounter(FieldSystem *fieldSystem);
@@ -211,7 +215,11 @@ BOOL FieldInput_Process(const FieldInput *input, FieldSystem *fieldSystem)
             playerEvent |= PLAYER_EVENT_USED_STRENGTH;
         }
 
-        if (Party_HasMonWithMove(SaveData_GetParty(fieldSystem->saveData), MOVE_WATERFALL) != PARTY_SLOT_NONE) {
+        if (Party_HasMonWithMove(SaveData_GetParty(fieldSystem->saveData), MOVE_WATERFALL) != PARTY_SLOT_NONE
+#ifdef SDK_PORT
+            || HmFree_CanUse(SaveData_GetParty(fieldSystem->saveData), MOVE_WATERFALL)
+#endif
+        ) {
             playerEvent |= PLAYER_EVENT_USED_WATERFALL;
         }
 
@@ -688,7 +696,11 @@ u16 Field_TileBehaviorToScript(FieldSystem *fieldSystem, u8 behavior)
         u32 distortionBehavior = PlayerAvatar_GetDistortionCurrTileBehaviour(fieldSystem->playerAvatar);
 
         if (PlayerAvatar_CanUseSurf(fieldSystem->playerAvatar, distortionBehavior, behavior) && TrainerInfo_HasBadge(info, 3)) {
-            if (Party_HasMonWithMove(SaveData_GetParty(fieldSystem->saveData), MOVE_SURF) != PARTY_SLOT_NONE) {
+            if (Party_HasMonWithMove(SaveData_GetParty(fieldSystem->saveData), MOVE_SURF) != PARTY_SLOT_NONE
+#ifdef SDK_PORT
+                || HmFree_CanUse(SaveData_GetParty(fieldSystem->saveData), MOVE_SURF)
+#endif
+            ) {
                 return SCRIPT_ID(FIELD_MOVES, 4);
             }
         }

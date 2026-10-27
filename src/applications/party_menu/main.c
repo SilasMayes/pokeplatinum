@@ -72,6 +72,12 @@
 #include "unk_0208C098.h"
 #endif
 
+#ifdef SDK_PORT
+#include "constants/moves.h"
+#include "port/hm_free.h"
+#include "unk_02054884.h"
+#endif
+
 FS_EXTERN_OVERLAY(party_menu_form_change);
 
 typedef struct MemberPanelTemplate {
@@ -1823,6 +1829,35 @@ static u8 GetContextMenuEntriesForPartyMon(PartyMenuApplication *application, u8
                     fieldMoveIndex++;
                 }
             }
+
+#ifdef SDK_PORT
+            // Field moves without HMs: the HM moves nobody knows that this Pokemon does for
+            // the party (Fly anywhere, the others where they can be used right now)
+            if (HmFree_Enabled() && application->partyMenu->fieldMoveContext != NULL) {
+                static const u16 hmMoves[] = {
+                    MOVE_FLY, MOVE_SURF, MOVE_CUT, MOVE_STRENGTH, MOVE_ROCK_SMASH, MOVE_WATERFALL, MOVE_ROCK_CLIMB, MOVE_DEFOG
+                };
+                Party *party = application->partyMenu->party;
+                for (i = 0; i < NELEMS(hmMoves) && fieldMoveIndex < LEARNED_MOVES_MAX; i++) {
+                    fieldEffect = GetFieldMoveIndex(hmMoves[i]);
+                    if (fieldEffect == 0xff) {
+                        continue;
+                    }
+                    if (hmMoves[i] != MOVE_FLY
+                        && (application->partyMenu->fieldMoveContext->usableMoves & (1 << (fieldEffect - PARTY_MENU_STR_MOVE0))) == 0) {
+                        continue;
+                    }
+                    if (Party_HasMonWithMove(party, hmMoves[i]) != PARTY_SLOT_NONE
+                        || HmFree_SubstituteSlot(party, hmMoves[i]) != application->currPartySlot) {
+                        continue;
+                    }
+                    menuEntriesBuffer[count] = fieldEffect;
+                    count++;
+                    PartyMenu_SetKnownFieldMove(application, hmMoves[i], fieldMoveIndex);
+                    fieldMoveIndex++;
+                }
+            }
+#endif
 
             menuEntriesBuffer[count] = 0;
             count++;

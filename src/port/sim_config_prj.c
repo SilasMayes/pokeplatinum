@@ -37,6 +37,9 @@ static int IniHandler(void* user, const char* section, const char* name,
     if(MATCH("General", "InstantBars")) {
         config->instantBars = StringToBool(value);
     }
+    if(MATCH("General", "HmFreeFieldMoves")) {
+        config->hmFree = StringToBool(value);
+    }
     if(MATCH("General", "DrawEveryFrame")) {
         config->drawEveryFrame = StringToBool(value);
     }
@@ -119,6 +122,7 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   aConfig->drawEveryFrame = FALSE;
   aConfig->instantText = TRUE;
   aConfig->instantBars = TRUE;
+  aConfig->hmFree = TRUE;
   aConfig->enableAsserts = FALSE;
   aConfig->breakDebuggerOnGfAssert = FALSE;
 
@@ -160,6 +164,7 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "DrawEveryFrame=%s\n", BoolToString(aConfig->drawEveryFrame));
     fprintf(configFile, "InstantText=%s\n", BoolToString(aConfig->instantText));
     fprintf(configFile, "InstantBars=%s\n", BoolToString(aConfig->instantBars));
+    fprintf(configFile, "HmFreeFieldMoves=%s\n", BoolToString(aConfig->hmFree));
     fprintf(configFile, "EnableAsserts=%s\n", BoolToString(aConfig->enableAsserts));
     fprintf(configFile, "BreakDebuggerOnAssert=%s\n", BoolToString(aConfig->breakDebuggerOnGfAssert));
     fprintf(configFile, "\n");

@@ -17,6 +17,9 @@
 #include "item.h"
 #include "map_header.h"
 #include "party.h"
+#ifdef SDK_PORT
+#include "port/hm_free.h"
+#endif
 #include "pc_boxes.h"
 #include "pokemon.h"
 #include "ribbon.h"
@@ -161,6 +164,16 @@ BOOL ScrCmd_FindPartySlotWithMove(ScriptContext *ctx)
             break;
         }
     }
+
+#ifdef SDK_PORT
+    // Field moves without HMs: a Pokemon that doesn't know the move does it
+    if (*destVar == MAX_PARTY_SIZE) {
+        int substitute = HmFree_SubstituteSlot(SaveData_GetParty(fieldSystem->saveData), move);
+        if (substitute >= 0) {
+            *destVar = substitute;
+        }
+    }
+#endif
 
     return FALSE;
 }

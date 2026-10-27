@@ -1032,6 +1032,7 @@ pokeplatinum_c += files(
     'port/save_slots.c',
     'port/soft_reset.c',
     'port/speed_up.c',
+    'port/hm_free.c',
     'port/gui_saves.cpp',
     'port/gui_settings.cpp',
     'port/gear_data.c',
