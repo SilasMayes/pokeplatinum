@@ -23,6 +23,7 @@
 #include "port/gear_data.h"
 #include "port/rom_patches.h"
 #include "port/save_slots.h"
+#include "port/nuzlocke.h"
 #include "port/shiny_hunt.h"
 #include "port/sim_config_prj.h"
 
@@ -450,6 +451,13 @@ void DrawMonCard(int index, ImVec2 size) {
     ImVec2 nameSize = TextSize(sBold, S(18.0f), MonName(mon));
     TextAt(draw, sBold, S(18.0f), ImVec2(pos.x + pad + nameSize.x + S(6.0f), pos.y + pad), kWarn, "*");
   }
+  if (Nuzlocke_Enabled() && Nuzlocke_IsDead(mon.personality)) {
+    // Fainted for good: dimmed, with a cross
+    draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(24, 29, 38, 150), S(12.0f));
+    const ImVec2 c(pos.x + size.x - pad - S(8.0f), pos.y + size.y - pad - S(10.0f));
+    draw->AddLine(ImVec2(c.x, c.y - S(9.0f)), ImVec2(c.x, c.y + S(9.0f)), kBad, S(3.0f));
+    draw->AddLine(ImVec2(c.x - S(6.0f), c.y - S(3.0f)), ImVec2(c.x + S(6.0f), c.y - S(3.0f)), kBad, S(3.0f));
+  }
 
   char level[16];
   snprintf(level, sizeof(level), "Lv %d", mon.level);
@@ -672,6 +680,53 @@ const char *Thousands(u32 value, char *out, size_t size) {
   return out;
 }
 
+// --- Nuzlocke (port/nuzlocke.h) -------------------------------------------------------------
+
+const char *NuzlockeResultWord(int result) {
+  return result == NUZLOCKE_CAUGHT ? "caught" : (result == NUZLOCKE_MISSED ? "missed" : "in battle");
+}
+
+// The area's encounter: still open, or what it was
+void DrawNuzlockeArea() {
+  if (!Nuzlocke_Enabled()) {
+    return;
+  }
+  const int label = Gear_CurrentLocationLabel();
+  if (label < 0) {
+    return;
+  }
+  const NuzlockeArea *area = Nuzlocke_Area((u16)label);
+  if (area == nullptr) {
+    ImGui::TextColored(ImColor(kGood), "Nuzlocke: this area's first encounter is still to come");
+  } else {
+    ImGui::TextColored(ImColor(area->result == NUZLOCKE_CAUGHT ? kText : kTextDim), "Nuzlocke: this area's encounter was %s, %s",
+                       Gear_SpeciesName(area->species), NuzlockeResultWord(area->result));
+  }
+}
+
+// The run: areas used, and who died
+void DrawNuzlockeRun() {
+  if (!Nuzlocke_Enabled()) {
+    return;
+  }
+  const NuzlockeRun *run = Nuzlocke_Get();
+  int caught = 0;
+  for (int i = 0; i < run->areaCount; i++) {
+    caught += run->areas[i].result == NUZLOCKE_CAUGHT ? 1 : 0;
+  }
+  ImGui::Dummy(ImVec2(0, S(6.0f)));
+  ImGui::PushFont(sBold, S(16.0f));
+  ImGui::TextColored(ImColor(kAccent), "Nuzlocke");
+  ImGui::PopFont();
+  ImGui::Text("%d area%s: %d caught, %d missed. %d fainted for good.", run->areaCount, run->areaCount == 1 ? "" : "s",
+              caught, run->areaCount - caught, run->deathCount);
+  for (int i = 0; i < run->deathCount; i++) {
+    const NuzlockeDeath &death = run->deaths[i];
+    ImGui::TextColored(ImColor(kTextDim), "+ %s (%s, Lv %d), %s", death.name, Gear_SpeciesName(death.species), death.level,
+                       Gear_LocationLabelName(death.location));
+  }
+}
+
 // Shiny-hunt counters (port/shiny_hunt.h): met, eggs and resets since the last shiny,
 // the Poke Radar chain, the last find
 void DrawHunt() {
@@ -739,6 +794,7 @@ void DrawArea() {
   ImGui::SameLine();
   ImGui::TextColored(ImColor(kTextDim), "  %s", TimeOfDayName(sArea.timeOfDay));
 
+  DrawNuzlockeArea();
   DrawHunt();
 
   if (Discovery() == GEAR_DISCOVERY_VANILLA) {
@@ -1607,6 +1663,28 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
     ImGui::TextColored(ImColor(Gear_SpeciesCaught(wild.species) ? kGood : kWarn), "%s",
                        Gear_SpeciesCaught(wild.species) ? "Already caught" : "Not caught yet");
   }
+  switch (Nuzlocke_CurrentEncounter()) {
+  case NUZLOCKE_ENC_FIRST:
+    ImGui::TextColored(ImColor(kGood), "Nuzlocke: this area's first encounter. This one counts!");
+    break;
+  case NUZLOCKE_ENC_USED: {
+    const int label = Gear_CurrentLocationLabel();
+    const NuzlockeArea *area = label >= 0 ? Nuzlocke_Area((u16)label) : nullptr;
+    if (area != nullptr) {
+      ImGui::TextColored(ImColor(kWarn), "Nuzlocke: this area's encounter was %s (%s)", Gear_SpeciesName(area->species),
+                         NuzlockeResultWord(area->result));
+    }
+    break;
+  }
+  case NUZLOCKE_ENC_DUPE:
+    ImGui::TextColored(ImColor(kTextDim), "Nuzlocke: already caught, so it doesn't count (dupes clause)");
+    break;
+  case NUZLOCKE_ENC_SHINY:
+    ImGui::TextColored(ImColor(kGood), "Nuzlocke: shiny! It doesn't count, catch it (shiny clause)");
+    break;
+  default:
+    break;
+  }
   if (!sBattle.trainer && opponentCount > 0) {
     // The shiny hunt: this one counted
     const GearBattler &wild = sBattle.battlers[opponents[0]];
@@ -1864,6 +1942,7 @@ void DrawTrainer() {
   ImGui::TextColored(ImColor(kTextDim), "Save slot %d%s%s", SaveSlots_Current() + 1,
                      info.savedAt[0] ? ", last saved " : "", info.savedAt);
 
+  DrawNuzlockeRun();
   DrawBosses();
 }
 

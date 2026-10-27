@@ -244,6 +244,8 @@ const char *Gear_AbilityName(u8 ability);
 const char *Gear_NatureName(u8 nature);
 const char *Gear_TypeName(u8 type);
 const char *Gear_LocationName(int mapHeaderID);
+const char *Gear_LocationLabelName(int labelTextID); // by the map's label (location name) ID
+int Gear_CurrentLocationLabel(void);                 // the player's, -1 outside a game
 
 // Type effectiveness in tenths (0, 5, 10, 20) of attackType against defender types
 int Gear_TypeEffectiveness(u8 attackType, u8 defenderType1, u8 defenderType2);

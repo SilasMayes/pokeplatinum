@@ -48,6 +48,18 @@ static int IniHandler(void* user, const char* section, const char* name,
     if(MATCH("General", "ClockOffsetMinutes")) {
         config->clockOffsetMinutes = atoi(value);
     }
+    if(MATCH("Nuzlocke", "Enabled")) {
+        config->nuzlocke = StringToBool(value);
+    }
+    if(MATCH("Nuzlocke", "DupesClause")) {
+        config->nuzlockeDupes = StringToBool(value);
+    }
+    if(MATCH("Nuzlocke", "ShinyClause")) {
+        config->nuzlockeShiny = StringToBool(value);
+    }
+    if(MATCH("Nuzlocke", "FaintedToPC")) {
+        config->nuzlockeToPC = StringToBool(value);
+    }
     if(MATCH("General", "DrawEveryFrame")) {
         config->drawEveryFrame = StringToBool(value);
     }
@@ -133,6 +145,10 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   aConfig->hmFree = TRUE;
   aConfig->hardLevelCap = FALSE;
   aConfig->clockOffsetMinutes = 0;
+  aConfig->nuzlocke = FALSE;
+  aConfig->nuzlockeDupes = TRUE;
+  aConfig->nuzlockeShiny = TRUE;
+  aConfig->nuzlockeToPC = FALSE;
   aConfig->enableAsserts = FALSE;
   aConfig->breakDebuggerOnGfAssert = FALSE;
 
@@ -179,6 +195,13 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "ClockOffsetMinutes=%d\n", aConfig->clockOffsetMinutes);
     fprintf(configFile, "EnableAsserts=%s\n", BoolToString(aConfig->enableAsserts));
     fprintf(configFile, "BreakDebuggerOnAssert=%s\n", BoolToString(aConfig->breakDebuggerOnGfAssert));
+    fprintf(configFile, "\n");
+
+    fprintf(configFile, "[Nuzlocke]\n");
+    fprintf(configFile, "Enabled=%s\n", BoolToString(aConfig->nuzlocke));
+    fprintf(configFile, "DupesClause=%s\n", BoolToString(aConfig->nuzlockeDupes));
+    fprintf(configFile, "ShinyClause=%s\n", BoolToString(aConfig->nuzlockeShiny));
+    fprintf(configFile, "FaintedToPC=%s\n", BoolToString(aConfig->nuzlockeToPC));
     fprintf(configFile, "\n");
 
     fprintf(configFile, "[Cheats]\n");

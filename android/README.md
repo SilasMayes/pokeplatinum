@@ -44,8 +44,8 @@ next page.
 * **Saves**: save slots, import / export, autosave, save now.
 * **Save editor**: see below.
 * **Gameplay**: instant text and HP/EXP bars, field moves without HMs, the hard level
-  cap, the game clock (hours and days ahead of the device's), 60 FPS options, drawing
-  every DS frame.
+  cap, the game clock (hours and days ahead of the device's), the Nuzlocke helper, 60
+  FPS options, drawing every DS frame.
 * **Display**: 3D resolution, second display, layout, swap screens, vsync.
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
@@ -253,6 +253,23 @@ clouds.
 * Battles, menus and other scenes that run at 30 frames a second only draw the frames
   they show (half the drawing). *Settings > Gameplay > Draw every DS frame* draws the
   in-between ones too, should anything flicker.
+
+## Nuzlocke helper
+
+Off by default (*Settings > Gameplay > Nuzlocke*). It keeps the run's books and shows
+them on the Gear; it doesn't stop you doing anything:
+
+* Each area's first wild encounter is the one that counts. The battle tab says so
+  ("This one counts!"), or what the area's encounter was if it's used up, and the
+  Area tab shows the current area's. With the *dupes clause* (on), species you have
+  already caught don't count; with the *shiny clause* (on), shinies never count and
+  can always be caught.
+* Pokemon that faint are dead: dimmed with a cross in Party, and listed with where they
+  fell in the Trainer tab, with the run's count of areas caught and missed. *Send
+  fainted Pokemon to the PC* (off) takes them out of the party after each battle, as
+  long as someone is left.
+* The books are kept beside the save slot (`save_slotN.nuzlocke`); *Start a new run*
+  clears them.
 
 ## Game clock
 

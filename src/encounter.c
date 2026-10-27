@@ -51,6 +51,7 @@
 #include "vars_flags.h"
 
 #ifdef SDK_PORT
+#include "port/nuzlocke.h"
 #include "port/shiny_hunt.h"
 #endif
 
@@ -104,6 +105,7 @@ static BOOL FieldTask_RunBattle(FieldTask *task)
     case 0:
 #ifdef SDK_PORT
         ShinyHunt_OnBattleStart(dto->battleType, dto->parties[BATTLER_ENEMY_1]);
+        Nuzlocke_OnBattleStart(dto->battleType, dto->parties[BATTLER_ENEMY_1]);
 #endif
         FieldSystem_StartBattleProcess(fieldSystem, dto);
         (*state)++;
@@ -114,6 +116,9 @@ static BOOL FieldTask_RunBattle(FieldTask *task)
             break;
         }
 
+#ifdef SDK_PORT
+        Nuzlocke_OnBattleEnd(dto->battleType, dto->resultMask, dto->parties[BATTLER_PLAYER_1], dto->parties[BATTLER_ENEMY_1]);
+#endif
         return TRUE;
     }
 

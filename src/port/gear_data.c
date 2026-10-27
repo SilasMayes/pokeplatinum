@@ -207,6 +207,20 @@ const char *Gear_LocationName(int mapHeaderID)
     return CachedName(&sLocationNames, MapHeader_GetMapLabelTextID(mapHeaderID));
 }
 
+const char *Gear_LocationLabelName(int labelTextID)
+{
+    return CachedName(&sLocationNames, labelTextID);
+}
+
+int Gear_CurrentLocationLabel(void)
+{
+    FieldSystem *fieldSystem = DEBUG_GetFieldSystem();
+    if (fieldSystem == NULL || fieldSystem->location == NULL) {
+        return -1;
+    }
+    return MapHeader_GetMapLabelTextID(fieldSystem->location->mapHeaderID);
+}
+
 // --- moves ---------------------------------------------------------------------------
 
 typedef struct CachedMove {

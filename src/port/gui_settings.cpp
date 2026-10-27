@@ -17,6 +17,7 @@
 #include <string>
 
 #include "port/autosave.h"
+#include "port/nuzlocke.h"
 #include "port/save_slots.h"
 #include "port/sim_config_prj.h"
 #include "port/soft_reset.h"
@@ -341,6 +342,27 @@ void DrawGameplay()
         "leader's strongest Pokemon (the Champion's after 8 badges), read from the game's own trainer data. The Gear's "
         "Trainer tab shows the cap and the bosses' teams.", &config->hardLevelCap);
     DrawClock();
+    Section("Nuzlocke");
+    ConfigToggle("Nuzlocke helper", "Keeps the run's books on the Gear: each area's first wild encounter (the one "
+        "you may catch), whether you caught it, and who fainted for good. It shows; it doesn't stop anything.",
+        &config->nuzlocke);
+    const bool nuzlocke = config->nuzlocke != FALSE;
+    ConfigToggle("Dupes clause", "Species you've already caught don't count as an area's first encounter.",
+        &config->nuzlockeDupes, nuzlocke);
+    ConfigToggle("Shiny clause", "Shiny Pokemon never count, and can always be caught.", &config->nuzlockeShiny, nuzlocke);
+    ConfigToggle("Send fainted Pokemon to the PC", "After each battle, as long as someone is left to carry on.",
+        &config->nuzlockeToPC, nuzlocke);
+    static double sResetUntil = 0.0;
+    const double now = ImGui::GetTime();
+    if (Button(now < sResetUntil ? "Tap again to start over" : "Start a new run",
+            "Clears this save slot's Nuzlocke books (areas and deaths).", false, nuzlocke)) {
+        if (now < sResetUntil) {
+            Nuzlocke_Reset();
+            sResetUntil = 0.0;
+        } else {
+            sResetUntil = now + 3.0;
+        }
+    }
     Section("Frame rate");
     ConfigToggle("60 FPS", "Smooth walking and scrolling: the overworld runs at 60 frames a second. Music keeps its "
                            "speed.", &config->enable60fps);
@@ -419,7 +441,7 @@ void SIM_Prj_SettingsPages()
     SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
     SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
-    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free moves, level cap, clock, 60 FPS", DrawGameplay, 30);
+    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free moves, level cap, clock, Nuzlocke, 60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
     SIM::Settings::AddPage("Cheats", "Walk through walls, no encounters", DrawCheats, 80);
     SIM::Settings::AddPage("Advanced", nullptr, DrawDebug, 90);

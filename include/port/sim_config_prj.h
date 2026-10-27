@@ -17,6 +17,10 @@ typedef struct {
     BOOL hmFree; // field moves without HMs: see port/hm_free.h
     BOOL hardLevelCap; // no battle EXP past the level cap (Gear_LevelCap)
     int clockOffsetMinutes; // the game's clock runs this far ahead of the device's (SIM_SetClockOffset)
+    BOOL nuzlocke;          // Nuzlocke helper (port/nuzlocke.h)
+    BOOL nuzlockeDupes;     // dupes clause
+    BOOL nuzlockeShiny;     // shiny clause
+    BOOL nuzlockeToPC;      // fainted Pokemon go to the PC after the battle
 	BOOL enableAsserts; //Should asserts cause a communication error?
     BOOL breakDebuggerOnGfAssert; // When true, break the debugger when a GF_ASSERT fails
 
