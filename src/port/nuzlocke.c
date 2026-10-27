@@ -13,6 +13,7 @@
 #include "port/gear_data.h"
 #include "port/save_slots.h"
 #include "port/sim_config_prj.h"
+#include "savedata/save_table.h"
 
 #include "location.h"
 #include "map_header.h"
