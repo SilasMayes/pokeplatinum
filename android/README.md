@@ -200,6 +200,15 @@ walking around (not in a battle or one of the game's menus).
   other tools read (named like `0448 - Lucario.pk4`); *Import a .pk4* on the editor's
   first page adds one (136 bytes, or 236 with party stats) to the party, or the PC when
   the party is full. The file picker lets you choose where files go and come from.
+* **Trade box** (trading between your save slots): *Send to the trade box* on a
+  Pokemon's page takes it out of this save into a box every slot shares
+  (`trade_box.bin`, up to 30). In another slot, *Save editor > Trade box* lists them
+  with who sent them; tap one to take it (to the party, or the PC when it's full).
+  Taken by another slot than the one that sent it, it is traded: Kadabra, Machoke,
+  Graveler and Haunter evolve, and so do Onix, Scyther, Seadra, Poliwhirl, Slowpoke,
+  Porygon, Porygon2, Rhydon, Electabuzz, Magmar, Dusclops and Clamperl holding their
+  item (which is used up), as after a trade in the game (without the evolution scene),
+  and the Pokedex counts them. Save in the game afterwards in both slots.
 * **Bag**: every pocket, how many of each item (0 takes it out), add any item.
 * **Trainer**: money, Battle Points, badges, play time, the National Pokedex.
 * **Legendary events**: the Mystery Gift events Nintendo gave out. *Start* gives the key

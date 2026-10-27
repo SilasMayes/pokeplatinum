@@ -16,6 +16,7 @@
 
 #include "port/gear_data.h"
 #include "port/save_editor.h"
+#include "port/save_slots.h"
 
 void SaveEditor_Draw();
 
@@ -23,7 +24,7 @@ using namespace SIM::UI;
 
 namespace {
 
-enum class View { Home, Party, Boxes, Mon, Give, Bag, Trainer, Events, Species, Move, Item, Nature };
+enum class View { Home, Party, Boxes, Mon, Give, Bag, Trainer, Events, Species, Move, Item, Nature, TradeBox };
 
 // What a picker's choice is for
 enum class Pick { MonMove, MonItem, MonNature, GiveSpecies, GiveItem, GiveNature, BagAdd };
@@ -413,6 +414,68 @@ void DrawHome()
             false, SIM_Files_IsBusy() == FALSE)) {
         SIM_Files_PickToOpen("Import a Pokemon (.pk4)", ".pk4,.pkm,.*", OnPk4Picked, nullptr);
     }
+    Want(7);
+    if (Button("Trade box", "Trade between your save slots: send Pokemon here from one slot, take them in another. "
+            "Trading evolves the ones it should.")) {
+        Go(View::TradeBox, 7);
+    }
+}
+
+// --- Trade box -----------------------------------------------------------------------------
+
+void DrawTradeBox()
+{
+    ShowStatus();
+    Note("Send Pokemon from a Pokemon's page in Party or PC boxes. Taking one into another save slot than the one "
+         "that sent it trades it. Save in the game afterwards, in both slots, to keep the trade.");
+    static SaveEdTradeEntry entries[SAVE_ED_TRADE_BOX_MAX];
+    static int count = 0;
+    static int gen = -1;
+    if (gen != sGen) {
+        count = SaveEd_TradeBox(entries, SAVE_ED_TRADE_BOX_MAX);
+        gen = sGen;
+    }
+    if (count == 0) {
+        Note("The trade box is empty.");
+        return;
+    }
+    for (int i = 0; i < count; i++) {
+        const SaveEdTradeEntry &entry = entries[i];
+        std::string title = entry.isEgg ? Format("Egg###t%d", i)
+                                        : Format("%s   Lv. %d%s###t%d", entry.name, entry.level, entry.shiny ? " *" : "", i);
+        std::string info = entry.trainer[0] != '\0' ? Format("From slot %d (trainer %s)", entry.fromSlot + 1, entry.trainer)
+                                                    : Format("From slot %d", entry.fromSlot + 1);
+        if (entry.heldItem != 0) {
+            info += Format(", holding %s", Gear_ItemName(entry.heldItem));
+        }
+        const bool traded = entry.fromSlot != SaveSlots_Current();
+        if (entry.evolvesInto != 0) {
+            info += traded ? Format(". Evolves into %s when you take it.", Gear_SpeciesName(entry.evolvesInto))
+                           : Format(". Evolves into %s when another slot takes it.", Gear_SpeciesName(entry.evolvesInto));
+        }
+        Want(i);
+        if (Card(title.c_str(), info.c_str())) {
+            int box = 0, slot = 0;
+            u16 evolved = 0;
+            const int result = SaveEd_TakeFromTradeBox(i, &box, &slot, &evolved);
+            std::string where;
+            if (result == 1) {
+                where = "your party";
+            } else if (result == 2) {
+                char name[32];
+                SaveEd_BoxName(box, name, sizeof(name));
+                where = Format("the PC (%s, slot %d)", name, slot + 1);
+            }
+            if (result > 0) {
+                SetStatus(evolved != 0 ? Format("%s evolved into %s! It went to %s.", entry.name, Gear_SpeciesName(evolved),
+                                             where.c_str())
+                                       : Format("%s went to %s.", entry.name, where.c_str()));
+            } else if (result == 0) {
+                SetStatus("No room in the party or the PC.", true);
+            }
+            Changed();
+        }
+    }
 }
 
 // --- Party and boxes ---------------------------------------------------------------------
@@ -662,6 +725,17 @@ void DrawMon()
     Want(41);
     if (Button("Export as .pk4", "A file PKHeX and other saves can read", false, SIM_Files_IsBusy() == FALSE)) {
         ExportPk4(sMon, mon);
+    }
+    Want(42);
+    if (Button("Send to the trade box", "Take it out of this save, to take it in another save slot (Save editor > "
+            "Trade box)")) {
+        if (const char *error = SaveEd_SendToTradeBox(sMon)) {
+            SetStatus(error, true);
+        } else {
+            Changed();
+            SetStatus(Format("%s is in the trade box.", mon.name));
+            Back();
+        }
     }
 }
 
@@ -1189,6 +1263,8 @@ const char *ViewTitle(View view)
         return sPick == Pick::BagAdd ? "Add an item" : "Choose an item";
     case View::Nature:
         return "Choose a nature";
+    case View::TradeBox:
+        return "Trade box";
     default:
         return nullptr;
     }
@@ -1270,6 +1346,9 @@ void SaveEditor_Draw()
         break;
     case View::Nature:
         DrawNature();
+        break;
+    case View::TradeBox:
+        DrawTradeBox();
         break;
     }
 

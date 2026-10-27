@@ -14,6 +14,8 @@
 #include "generated/abilities.h"
 #include "generated/battle_terrains.h"
 #include "generated/distribution_events.h"
+#include "generated/evolution_methods.h"
+#include "generated/game_records.h"
 #include "generated/gender_ratios.h"
 #include "generated/items.h"
 #include "generated/move_attributes.h"
@@ -21,10 +23,12 @@
 #include "field/field_system.h"
 #include "port/debug_field.h"
 #include "port/gear_data.h"
+#include "port/save_slots.h"
 #include "savedata/save_table.h"
 
 #include "bag.h"
 #include "field_task.h"
+#include "game_records.h"
 #include "heap.h"
 #include "item.h"
 #include "location.h"
@@ -656,6 +660,246 @@ int SaveEd_ImportPk4(const u8 *data, int size, BOOL toParty, int *box, int *slot
         SaveData_UpdateCatchRecords(saveData, mon); // the Pokedex
     }
     Heap_Free(mon);
+    return result;
+}
+
+// --- Trade box -------------------------------------------------------------------------
+
+#define TRADE_BOX_PATH "trade_box.bin"
+#define TRADE_BOX_MAGIC 0x31425450 // "PTB1"
+
+typedef struct TradeBoxEntry {
+    u8 fromSlot;
+    u8 reserved[3];
+    u8 pk4[SAVE_ED_PK4_SIZE];
+} TradeBoxEntry;
+
+typedef struct TradeBox {
+    int count;
+    TradeBoxEntry entries[SAVE_ED_TRADE_BOX_MAX];
+} TradeBox;
+
+static void LoadTradeBox(TradeBox *box)
+{
+    memset(box, 0, sizeof(*box));
+    FILE *file = fopen(TRADE_BOX_PATH, "rb");
+    if (file == NULL) {
+        return;
+    }
+    u32 header[2] = { 0, 0 };
+    if (fread(header, sizeof(header), 1, file) == 1 && header[0] == TRADE_BOX_MAGIC) {
+        int count = header[1] > SAVE_ED_TRADE_BOX_MAX ? SAVE_ED_TRADE_BOX_MAX : (int)header[1];
+        box->count = (int)fread(box->entries, sizeof(TradeBoxEntry), count, file);
+    }
+    fclose(file);
+}
+
+static BOOL StoreTradeBox(const TradeBox *box)
+{
+    // Written to a new file first, so a failed write can't lose the box
+    FILE *file = fopen(TRADE_BOX_PATH ".tmp", "wb");
+    if (file == NULL) {
+        return FALSE;
+    }
+    const u32 header[2] = { TRADE_BOX_MAGIC, (u32)box->count };
+    BOOL ok = fwrite(header, sizeof(header), 1, file) == 1
+        && (box->count == 0 || fwrite(box->entries, sizeof(TradeBoxEntry), box->count, file) == (size_t)box->count);
+    ok = fclose(file) == 0 && ok;
+    if (ok) {
+        remove(TRADE_BOX_PATH);
+        ok = rename(TRADE_BOX_PATH ".tmp", TRADE_BOX_PATH) == 0;
+    }
+    return ok;
+}
+
+// What trading this Pokemon would make it, 0 for nothing (as the game's trades check)
+static u16 TradeEvolution(Pokemon *mon, int *evoType)
+{
+    if (Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL)) {
+        return 0;
+    }
+    return Pokemon_GetEvolutionTargetSpecies(NULL, mon, EVO_CLASS_BY_TRADE, 0, evoType);
+}
+
+int SaveEd_TradeBox(SaveEdTradeEntry *out, int max)
+{
+    TradeBox *box = Heap_Alloc(HEAP_ID_SYSTEM, sizeof(TradeBox));
+    LoadTradeBox(box);
+    Pokemon *mon = Pokemon_New(HEAP_ID_SYSTEM);
+    int count = 0;
+    for (int i = 0; i < box->count && count < max; i++) {
+        BoxPokemon boxMon;
+        SaveEdTradeEntry *entry = &out[count];
+        memset(entry, 0, sizeof(*entry));
+        if (!BoxPokemon_PortFromPk4(box->entries[i].pk4, &boxMon)) {
+            snprintf(entry->name, sizeof(entry->name), "?");
+            count++;
+            continue;
+        }
+        Pokemon_FromBoxPokemon(&boxMon, mon);
+        entry->species = Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL);
+        entry->level = Pokemon_GetValue(mon, MON_DATA_LEVEL, NULL);
+        entry->isEgg = Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL);
+        entry->shiny = Pokemon_IsShiny(mon);
+        entry->fromSlot = box->entries[i].fromSlot;
+        entry->heldItem = Pokemon_GetValue(mon, MON_DATA_HELD_ITEM, NULL);
+        charcode_t text[MON_NAME_LEN + 1];
+        Pokemon_GetValue(mon, MON_DATA_NICKNAME, text);
+        Gear_TextToAscii(text, MON_NAME_LEN + 1, entry->name, sizeof(entry->name));
+        if (!Pokemon_GetValue(mon, MON_DATA_HAS_NICKNAME, NULL)) {
+            snprintf(entry->name, sizeof(entry->name), "%s", Gear_SpeciesName(entry->species));
+        }
+        charcode_t trainer[TRAINER_NAME_LEN + 1];
+        Pokemon_GetValue(mon, MON_DATA_OT_NAME, trainer);
+        Gear_TextToAscii(trainer, TRAINER_NAME_LEN + 1, entry->trainer, sizeof(entry->trainer));
+        int evoType;
+        entry->evolvesInto = TradeEvolution(mon, &evoType);
+        count++;
+    }
+    Heap_Free(mon);
+    Heap_Free(box);
+    return count;
+}
+
+const char *SaveEd_SendToTradeBox(SaveEdRef ref)
+{
+    SaveData *saveData = EditableSave();
+    if (saveData == NULL) {
+        return "The save can't be changed right now.";
+    }
+    TradeBox *box = Heap_Alloc(HEAP_ID_SYSTEM, sizeof(TradeBox));
+    LoadTradeBox(box);
+    const char *error = NULL;
+    MonAccess access;
+    Pokemon *mon = OpenMon(ref, &access);
+
+    if (box->count >= SAVE_ED_TRADE_BOX_MAX) {
+        error = "The trade box is full.";
+    } else if (mon == NULL) {
+        error = "There's no Pokemon there.";
+    } else if (ref.box == SAVE_ED_PARTY) {
+        // The party keeps a Pokemon that can battle
+        Party *party = SaveData_GetParty(saveData);
+        int others = 0;
+        for (int i = 0; i < Party_GetCurrentCount(party); i++) {
+            Pokemon *other = Party_GetPokemonBySlotIndex(party, i);
+            if (i != ref.slot && !Pokemon_GetValue(other, MON_DATA_IS_EGG, NULL) && Pokemon_GetValue(other, MON_DATA_HP, NULL) > 0) {
+                others++;
+            }
+        }
+        if (others == 0) {
+            error = "That's the last Pokemon in your party that can battle.";
+        }
+    }
+
+    if (error == NULL) {
+        TradeBoxEntry *entry = &box->entries[box->count];
+        memset(entry, 0, sizeof(*entry));
+        entry->fromSlot = (u8)SaveSlots_Current();
+        BoxPokemon_PortToPk4(Pokemon_GetBoxPokemon(mon), entry->pk4);
+        box->count++;
+        if (!StoreTradeBox(box)) {
+            error = "The trade box could not be written.";
+        }
+    }
+    CloseMon(&access, FALSE);
+
+    if (error == NULL) {
+        if (ref.box == SAVE_ED_PARTY) {
+            Party_RemovePokemonBySlotIndex(SaveData_GetParty(saveData), ref.slot);
+        } else {
+            PCBoxes_InitBoxMonAt(SaveData_GetPCBoxes(saveData), ref.box, ref.slot);
+            SaveData_SetFullSaveRequired();
+        }
+    }
+    Heap_Free(box);
+    return error;
+}
+
+// After a trade: what the evolution scene does (src/evolution.c), without the scene
+static void EvolveTraded(SaveData *saveData, Pokemon *mon, u16 target, int evoType)
+{
+    u32 species = target;
+    Pokemon_SetValue(mon, MON_DATA_SPECIES, &species);
+    Pokemon_CalcAbility(mon);
+    Pokemon_CalcLevelAndStats(mon);
+    Pokedex_Capture(SaveData_GetPokedex(saveData), mon);
+    GameRecords_IncrementRecordValue(SaveData_GetGameRecords(saveData), RECORD_POKEMON_EVOLVED);
+    if (!Pokemon_GetValue(mon, MON_DATA_HAS_NICKNAME, NULL)) {
+        Pokemon_SetValue(mon, MON_DATA_SPECIES_NAME, NULL);
+    }
+    if (evoType == EVO_TRADE_WITH_HELD_ITEM) {
+        u32 none = ITEM_NONE;
+        Pokemon_SetValue(mon, MON_DATA_HELD_ITEM, &none);
+    }
+}
+
+int SaveEd_TakeFromTradeBox(int index, int *boxID, int *boxSlot, u16 *evolvedInto)
+{
+    *evolvedInto = 0;
+    SaveData *saveData = EditableSave();
+    if (saveData == NULL) {
+        return 0;
+    }
+    TradeBox *box = Heap_Alloc(HEAP_ID_SYSTEM, sizeof(TradeBox));
+    LoadTradeBox(box);
+    if (index < 0 || index >= box->count) {
+        Heap_Free(box);
+        return -1;
+    }
+
+    BoxPokemon boxMon;
+    if (!BoxPokemon_PortFromPk4(box->entries[index].pk4, &boxMon)) {
+        Heap_Free(box);
+        return -1;
+    }
+    Pokemon *mon = Pokemon_New(HEAP_ID_SYSTEM);
+    Pokemon_FromBoxPokemon(&boxMon, mon);
+
+    // Taken by another slot than the one that sent it: a trade
+    if (box->entries[index].fromSlot != SaveSlots_Current()) {
+        int evoType = 0;
+        const u16 target = TradeEvolution(mon, &evoType);
+        if (target != 0) {
+            EvolveTraded(saveData, mon, target, evoType);
+            *evolvedInto = target;
+        }
+    }
+    u32 hp = Pokemon_GetValue(mon, MON_DATA_MAX_HP, NULL);
+    Pokemon_SetValue(mon, MON_DATA_HP, &hp);
+
+    Party *party = SaveData_GetParty(saveData);
+    PCBoxes *pcBoxes = SaveData_GetPCBoxes(saveData);
+    int pcBox = USE_CURRENT_BOX, pcSlot = 0;
+    int result = 0;
+    if (Party_GetCurrentCount(party) < MAX_PARTY_SIZE) {
+        result = 1;
+    } else if (PCBoxes_TryGetNextAvailableSpace(pcBoxes, &pcBox, &pcSlot)) {
+        result = 2;
+    }
+
+    if (result != 0) {
+        // Out of the box first: if that can't be written, nothing changes
+        TradeBoxEntry taken = box->entries[index];
+        memmove(&box->entries[index], &box->entries[index + 1], sizeof(TradeBoxEntry) * (box->count - index - 1));
+        box->count--;
+        if (!StoreTradeBox(box)) {
+            result = 0;
+            (void)taken;
+        } else if (result == 1) {
+            Party_AddPokemon(party, mon);
+        } else {
+            PCBoxes_TryStoreBoxMonAt(pcBoxes, pcBox, pcSlot, Pokemon_GetBoxPokemon(mon));
+            SaveData_SetFullSaveRequired();
+            *boxID = pcBox;
+            *boxSlot = pcSlot;
+        }
+        if (result != 0 && !Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL)) {
+            SaveData_UpdateCatchRecords(saveData, mon); // the Pokedex
+        }
+    }
+    Heap_Free(mon);
+    Heap_Free(box);
     return result;
 }
 

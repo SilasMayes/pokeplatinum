@@ -134,6 +134,36 @@ BOOL SaveEd_ExportPk4(SaveEdRef ref, u8 *out);
 // and it has room) or the PC: 1 party, 2 PC (*box, *slot), 0 no room, -1 not a Pokemon
 int SaveEd_ImportPk4(const u8 *data, int size, BOOL toParty, int *box, int *slot);
 
+// --- Trade box -------------------------------------------------------------------------
+//
+// A box every save slot can send Pokemon to and take them from (trade_box.bin, next to the
+// saves). A Pokemon taken into another slot than the one that sent it is traded: it
+// evolves if trading evolves it (Kadabra, Machoke, Graveler, Haunter, and Onix, Scyther,
+// Seadra, Poliwhirl, Slowpoke, Porygon and friends with their held item), as after an
+// in-game trade, and the Pokedex counts it.
+
+#define SAVE_ED_TRADE_BOX_MAX 30
+
+typedef struct SaveEdTradeEntry {
+    u16 species;
+    u8 level;
+    BOOL isEgg;
+    BOOL shiny;
+    int fromSlot;                    // 0-based save slot that sent it
+    char name[SAVE_ED_NAME_LEN];     // nickname, or the species
+    char trainer[SAVE_ED_NAME_LEN];  // original trainer
+    u16 heldItem;
+    u16 evolvesInto;                 // species it becomes when traded, 0: none
+} SaveEdTradeEntry;
+
+int SaveEd_TradeBox(SaveEdTradeEntry *out, int max);
+// Takes the Pokemon out of this save into the trade box. NULL when done, else why not.
+const char *SaveEd_SendToTradeBox(SaveEdRef ref);
+// Takes entry index into this save (the party when it has room, else the PC): 1 party,
+// 2 PC (*box, *slot), 0 no room, -1 no such entry. *evolvedInto: the species it became
+// (0 if it didn't evolve).
+int SaveEd_TakeFromTradeBox(int index, int *box, int *slot, u16 *evolvedInto);
+
 // --- Bag -------------------------------------------------------------------------------
 
 #define SAVE_ED_POCKETS 8 // POCKET_* order (constants/items.h)
