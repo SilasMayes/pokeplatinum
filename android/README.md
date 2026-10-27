@@ -43,9 +43,10 @@ next page.
   choose at launch.
 * **Saves**: save slots, import / export, autosave, save now.
 * **Save editor**: see below.
-* **Gameplay**: 60 FPS options.
+* **Gameplay**: instant text and HP/EXP bars, 60 FPS options, drawing every DS frame.
 * **Display**: 3D resolution, second display, layout, swap screens, vsync.
-* **Sound**, **Controls** (remap buttons: tap a control, press the button).
+* **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
+  press the button).
 * **Gear**, **Cheats**.
 * **Advanced**: frame timings, the game's assertion checks, and *Developer windows* (the
   original floating debug windows: libntr, multiplayer, Gen Pokemon, Gen Items, Jump to
@@ -191,6 +192,20 @@ overworld twice as fast. Known leftovers at 60 on the overworld: rain/snow parti
 some small field effects move faster than on the DS, and wandering NPCs pause for
 shorter.
 
+## Speed
+
+* **Instant text** and **instant HP/EXP bars** (*Settings > Gameplay*, both on by
+  default): what Renegade Platinum's SpeedUp patch does, for any game. Messages appear
+  at once up to where they wait for a button; battle bars jump to their new value.
+* **Fast-forward**: hold **R2** (or tap **>>** in the Gear's header to switch it on and
+  off). *Settings > Controls* sets the speed (2x to 8x, or Max: as fast as the device
+  goes; 4x by default), whether the button works while held or switches it on and off,
+  and which button it is. `>> 4x` shows in the top-right corner while it's on. Music
+  keeps its normal tempo.
+* Battles, menus and other scenes that run at 30 frames a second only draw the frames
+  they show (half the drawing). *Settings > Gameplay > Draw every DS frame* draws the
+  in-between ones too, should anything flicker.
+
 ## Controls
 
 The built-in controller works out of the box (A, B, X, Y, L, R, Start, Select, D-pad).
@@ -198,6 +213,7 @@ Remap under *Settings > Controls*.
 
 * **Back button / back gesture** or **R3**: open (and close) the settings.
 * **L3**: the Gear on the whole lower panel (or back).
+* **R2**: fast-forward (while held, by default).
 * **L + R + Start + Select**: soft reset, as on the DS (or *Settings > Games > Reset to
   the title screen*, tap twice). Nothing is saved: the app restarts into the same game and
   goes straight to the title screen, so you're back at your last save (resetting for a
@@ -207,8 +223,14 @@ Remap under *Settings > Controls*.
 ## Notes
 
 * Default 3D resolution is 5x; change it under *Settings > Display > 3D resolution*.
-* *Settings > Advanced* shows where each frame's time goes (game logic, 3D draw calls,
-  compositing, frame-limiter wait, buffer swap).
+* *Settings > Advanced* shows where each frame's time goes: frames shown and DS frames
+  run per second, CPU time per part (game, 3D draw calls, 2D layers, layer uploads, the
+  second screen and the Gear, menus, frame-limiter wait, buffer swap), GPU time per part
+  (from timer queries) and the cores the game runs on. *Frame timings on screen* puts
+  the same over the game.
+* Speed on Android: the game thread runs on the fastest cores and tells Android each
+  frame's time budget (performance hints), the 2D layer textures are a ring per screen so
+  an upload never waits for the GPU, and unchanged layers aren't uploaded.
 * The Android build is compiled with optimization (`-O2 -fno-strict-aliasing -fwrapv`);
   the PC builds are not.
 * Double battles: picking a target overran a 4-byte stack array on 64-bit (the DS code
