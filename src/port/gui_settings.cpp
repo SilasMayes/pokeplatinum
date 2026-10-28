@@ -338,6 +338,11 @@ void DrawGameplay()
     ConfigToggle("Field moves without HMs", "With the HM in your bag (and its badge), Cut, Fly, Surf, Strength, "
         "Rock Smash, Waterfall, Rock Climb and Defog work without teaching the move: a Pokemon that could learn "
         "it does it. Fly and the others show in that Pokemon's menu.", &config->hmFree);
+    Section("Items and EXP");
+    ConfigToggle("Use another Repel?", "When a Repel wears off and the bag has another, the game asks whether to use "
+        "one (as in Black and White): the same kind as last time, or the weakest you have.", &config->repelPrompt);
+    ConfigToggle("Exp. Share for the whole party", "As in X and Y: the Pokemon that battled each get all the EXP, "
+        "and the rest of the party (not fainted) half as much.", &config->expShareAll);
     Section("Level cap");
     ConfigToggle("Hard level cap", "Pokemon get no EXP from battles past the level cap: the level of the next gym "
         "leader's strongest Pokemon (the Champion's after 8 badges), read from the game's own trainer data. The Gear's "
@@ -594,7 +599,7 @@ void SIM_Prj_SettingsPages()
     SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
     SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
-    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free moves, level cap, clock, Nuzlocke, 60 FPS", DrawGameplay, 30);
+    SIM::Settings::AddPage("Gameplay", "Instant text, HM-free moves, Repel prompt, Exp. Share, level cap, clock, Nuzlocke, 60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("GBA slot", "Pal Park and dual-slot Pokemon from a GBA save", DrawGBASlot, 40);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
     SIM::Settings::AddPage("Cheats", "Shiny odds, EXP, catching, PP, walls, encounters", DrawCheats, 80);

@@ -42,6 +42,12 @@ static int IniHandler(void* user, const char* section, const char* name,
     if(MATCH("General", "HmFreeFieldMoves")) {
         config->hmFree = StringToBool(value);
     }
+    if(MATCH("General", "RepelPrompt")) {
+        config->repelPrompt = StringToBool(value);
+    }
+    if(MATCH("General", "ExpShareAll")) {
+        config->expShareAll = StringToBool(value);
+    }
     if(MATCH("General", "HardLevelCap")) {
         config->hardLevelCap = StringToBool(value);
     }
@@ -170,6 +176,8 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   aConfig->instantBars = TRUE;
   aConfig->hmFree = TRUE;
   aConfig->hardLevelCap = FALSE;
+  aConfig->repelPrompt = TRUE;
+  aConfig->expShareAll = FALSE;
   aConfig->clockOffsetMinutes = 0;
   aConfig->nuzlocke = FALSE;
   aConfig->nuzlockeDupes = TRUE;
@@ -228,6 +236,8 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "InstantBars=%s\n", BoolToString(aConfig->instantBars));
     fprintf(configFile, "HmFreeFieldMoves=%s\n", BoolToString(aConfig->hmFree));
     fprintf(configFile, "HardLevelCap=%s\n", BoolToString(aConfig->hardLevelCap));
+    fprintf(configFile, "RepelPrompt=%s\n", BoolToString(aConfig->repelPrompt));
+    fprintf(configFile, "ExpShareAll=%s\n", BoolToString(aConfig->expShareAll));
     fprintf(configFile, "ClockOffsetMinutes=%d\n", aConfig->clockOffsetMinutes);
     fprintf(configFile, "EnableAsserts=%s\n", BoolToString(aConfig->enableAsserts));
     fprintf(configFile, "BreakDebuggerOnAssert=%s\n", BoolToString(aConfig->breakDebuggerOnGfAssert));

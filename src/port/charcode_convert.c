@@ -2,6 +2,8 @@
 
 #include "charcode_convert.h"
 
+#include "constants/charcode.h"
+
 
 
 static char CharCodeToAsciiTable[] = {
@@ -515,4 +517,40 @@ void CharCode_ToAsciiString(charcode_t * charcodeString, char * cString, int len
             outStringPos++;
         }
     }
+}
+
+int CharCode_FromAscii(const char * text, charcode_t * out, int max)
+{
+    int len = 0;
+    for (; *text != '\0' && len < max - 1; text++) {
+        const char c = *text;
+        charcode_t code;
+        if (c >= 'A' && c <= 'Z') {
+            code = CHAR_A + (c - 'A');
+        } else if (c >= 'a' && c <= 'z') {
+            code = CHAR_a + (c - 'a');
+        } else if (c >= '0' && c <= '9') {
+            code = CHAR_0 + (c - '0');
+        } else {
+            switch (c) {
+            case '\n': code = CHAR_CR; break;
+            case '!': code = CHAR_EXCLAMATION; break;
+            case '?': code = CHAR_QUESTION; break;
+            case ',': code = CHAR_COMMA; break;
+            case '.': code = CHAR_PERIOD; break;
+            case '\'': code = CHAR_SINGLE_QUOTE_CLOSE; break;
+            case '/': code = CHAR_SLASH; break;
+            case '-': code = CHAR_MINUS; break;
+            case ':': code = CHAR_COLON; break;
+            case '(': code = CHAR_PAREN_OPEN; break;
+            case ')': code = CHAR_PAREN_CLOSE; break;
+            case '%': code = CHAR_PERCENT; break;
+            case '\x01': code = CHAR_e_ACUTE; break;
+            default: code = CHAR_SPACE; break;
+            }
+        }
+        out[len++] = code;
+    }
+    out[len] = CHAR_EOS;
+    return len;
 }

@@ -78,6 +78,11 @@ BOOL Cheats_AnyTM(void)
     return Config() != NULL && Config()->anyTM;
 }
 
+BOOL Cheats_ExpShareAll(void)
+{
+    return SIM_Config_prj_GetConfig()->expShareAll;
+}
+
 // --- shiny odds ----------------------------------------------------------------------------
 
 // Our own random numbers: the game's RNG stays as it would have been

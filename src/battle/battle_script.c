@@ -76,6 +76,10 @@
 #include "res/battle/scripts/sub_seq.naix"
 #include "res/text/bank/battle_strings.h"
 
+#ifdef SDK_PORT
+#include "port/cheats.h"
+#endif
+
 typedef BOOL (*BtlCmd)(BattleSystem *, BattleContext *);
 
 typedef struct BattleMessageParams {
@@ -2223,6 +2227,14 @@ static BOOL BtlCmd_CalcExpGain(BattleSystem *battleSys, BattleContext *battleCtx
         }
         #endif
 
+#ifdef SDK_PORT
+        // Exp. Share for the whole party (Gen 6 style, Settings > Gameplay): the Pokemon
+        // that battled each get all of it, the rest of the party half
+        if (Cheats_ExpShareAll()) {
+            battleCtx->gainedExp = exp > 0 ? exp : 1;
+            battleCtx->sharedExp = exp / 2 > 0 ? exp / 2 : 1;
+        } else
+#endif
         if (totalMonsWithExpShare) {
             battleCtx->gainedExp = (exp / 2) / totalMonsGainingExp;
 
@@ -9760,6 +9772,12 @@ static void BattleScript_GetExpTask(SysTask *task, void *inData)
         if (itemEffect == HOLD_EFFECT_EXP_SHARE || (data->battleCtx->sideGetExpMask[battler] & FlagIndex(slot))) {
             break;
         }
+#ifdef SDK_PORT
+        if (Cheats_ExpShareAll() && Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL)
+            && !Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL) && Pokemon_GetValue(mon, MON_DATA_HP, NULL)) {
+            break;
+        }
+#endif
     }
 
     if (slot == BattleSystem_GetPartyCount(data->battleSys, expBattler)) {
@@ -9793,6 +9811,14 @@ static void BattleScript_GetExpTask(SysTask *task, void *inData)
                 totalExp = data->battleCtx->gainedExp;
             }
 
+#ifdef SDK_PORT
+            if (Cheats_ExpShareAll()) {
+                // Gen 6: half for the ones that didn't battle, an Exp. Share adds nothing
+                if (!(data->battleCtx->sideGetExpMask[battler] & FlagIndex(slot))) {
+                    totalExp = Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL) ? 0 : data->battleCtx->sharedExp;
+                }
+            } else
+#endif
             if (itemEffect == HOLD_EFFECT_EXP_SHARE) {
                 totalExp += data->battleCtx->sharedExp;
             }

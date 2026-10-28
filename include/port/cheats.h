@@ -24,6 +24,7 @@ BOOL Cheats_InfinitePP(void);   // the player's moves don't use PP
 BOOL Cheats_AlwaysEscape(void); // running from wild Pokemon always works, even when trapped
 BOOL Cheats_FastEggs(void);     // eggs hatch after a few steps
 BOOL Cheats_AnyTM(void);        // any Pokemon can learn any TM or HM
+BOOL Cheats_ExpShareAll(void);  // Exp. Share for the whole party, Gen 6 style (a Gameplay setting)
 
 // Game hooks: a battle from the field is starting (src/encounter.c), an egg hatched
 // (src/egg_hatch.c). They make wild Pokemon and hatchlings shiny at the boosted odds.

@@ -16,6 +16,8 @@ typedef struct {
     BOOL instantBars;
     BOOL hmFree; // field moves without HMs: see port/hm_free.h
     BOOL hardLevelCap; // no battle EXP past the level cap (Gear_LevelCap)
+    BOOL repelPrompt;  // "Use another Repel?" (port/repel_prompt.h)
+    BOOL expShareAll;  // the whole party gets EXP, Gen 6 style (port/cheats.h)
     int clockOffsetMinutes; // the game's clock runs this far ahead of the device's (SIM_SetClockOffset)
     BOOL nuzlocke;          // Nuzlocke helper (port/nuzlocke.h)
     BOOL nuzlockeDupes;     // dupes clause

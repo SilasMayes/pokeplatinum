@@ -1,5 +1,9 @@
 #include "applications/bag/main.h"
 
+#ifdef SDK_PORT
+#include "port/repel_prompt.h"
+#endif
+
 #include <nitro.h>
 #include <string.h>
 
@@ -2309,6 +2313,9 @@ static String *TryUseRepel(BagController *controller, u16 item)
 
     u32 stepCount = Item_LoadParam(item, ITEM_PARAM_EFFECT_PARAM, HEAP_ID_BAG);
     SetRepelSteps(controller, stepCount);
+#ifdef SDK_PORT
+    RepelPrompt_NoteUsed(item); // the kind "Use another Repel?" offers
+#endif
     controller->selectedItemCount = 1;
     Sound_PlayEffect(SEQ_SE_DP_CARD2_sseq);
 
