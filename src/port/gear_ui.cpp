@@ -18,11 +18,13 @@
 #include <unordered_map>
 
 #include "constants/battle/condition.h"
+#include "constants/species.h"
 #include "generated/genders.h"
 #include "generated/time_of_day.h"
 
 #include "port/cheats.h"
 #include "port/gear_data.h"
+#include "port/gear_dex.h"
 #include "port/gear_sprites.h"
 #include "port/rom_patches.h"
 #include "port/save_slots.h"
@@ -783,6 +785,11 @@ void DrawParty(const SIM_CompanionFrame *frame) {
 
 // --- area --------------------------------------------------------------------------------
 
+bool DexSwitch();
+void DrawDex();
+void OpenSpecies(u16 species);
+void PokeBall(ImDrawList *draw, ImVec2 center, float radius);
+
 const char *MethodName(int method) {
   switch (method) {
   case GEAR_ENC_GRASS:
@@ -799,6 +806,8 @@ const char *MethodName(int method) {
     return "Poke Radar";
   case GEAR_ENC_SWARM:
     return "Swarms";
+  case GEAR_ENC_GBA:
+    return "GBA slot";
   default:
     return "";
   }
@@ -953,6 +962,10 @@ void DrawArea() {
     ImGui::TextDisabled("Start or continue a game to see this area.");
     return;
   }
+  if (Discovery() != GEAR_DISCOVERY_VANILLA && DexSwitch()) {
+    DrawDex();
+    return;
+  }
 
   ImGui::PushFont(sBold, S(22.0f));
   ImGui::TextUnformatted(sArea.name);
@@ -1009,7 +1022,16 @@ void DrawArea() {
 
     ImVec2 pos = ImGui::GetCursorScreenPos();
     const float rowHeight = S(34.0f);
-    draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), kPanel, S(8.0f));
+    // Tap a Pokemon for its Pokedex page
+    ImGui::PushID(i);
+    const bool tapped = Tap("encounter", ImVec2(width, rowHeight));
+    const bool held = ImGui::IsItemActive() && !sDragging;
+    ImGui::PopID();
+    ImGui::SetCursorScreenPos(pos);
+    if (tapped && showName) {
+      OpenSpecies(enc.species);
+    }
+    draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), held && showName ? kPanelPressed : kPanel, S(8.0f));
 
     // Caught: filled ball. Seen: ring. Never seen: dim dot
     ImVec2 center(pos.x + S(18.0f), pos.y + rowHeight * 0.5f);
@@ -1060,6 +1082,461 @@ void DrawArea() {
     TextAt(draw, sRegular, S(15.0f), ImVec2(pos.x + width - S(70.0f) - infoSize.x, pos.y + S(9.0f)), kTextDim, info);
 
     ImGui::Dummy(ImVec2(width, rowHeight + S(4.0f)));
+  }
+}
+
+// --- Pokédex (port/gear_dex.h) ------------------------------------------------------------------
+
+bool sDexOpen = false;       // the Area tab shows the Pokédex instead of this area
+u16 sDexSpecies = 0;         // a species page (0: the list)
+u16 sDexBack[8];             // pages to go back to
+int sDexBackCount = 0;
+int sDexLetter = 0;          // 0 all, else 'A'..'Z'
+GearSpecies sDexData;
+u16 sDexLoaded = 0;
+u16 sDexOrder[MAX_SPECIES];
+int sDexOrderCount = 0;
+
+bool DexCanShow(u16 species) {
+  return Discovery() == GEAR_DISCOVERY_EVERYTHING || Gear_SpeciesSeen(species);
+}
+
+void OpenSpecies(u16 species) {
+  if (sDexOpen && sDexSpecies != 0 && sDexSpecies != species && sDexBackCount < 8) {
+    sDexBack[sDexBackCount++] = sDexSpecies;
+  } else if (!sDexOpen) {
+    sDexBackCount = 0;
+  }
+  sDexOpen = true;
+  sDexSpecies = species;
+  ImGui::SetScrollY(0.0f);
+}
+
+// This area | Pokédex; true when the Pokédex is open
+bool DexSwitch() {
+  const char *labels[2] = {"This area", "Pok\xC3\xA9" "dex"};
+  const float width = ImGui::GetContentRegionAvail().x;
+  const float gap = S(6.0f);
+  const float w = (width - gap) * 0.5f;
+  const float h = S(34.0f);
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  for (int i = 0; i < 2; i++) {
+    if (i > 0) {
+      ImGui::SameLine(0.0f, gap);
+    }
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::PushID(i);
+    if (Tap("areaview", ImVec2(w, h))) {
+      if (i == 1 && sDexOpen && sDexSpecies != 0) {
+        sDexSpecies = 0; // Pokédex again: back to the list
+        sDexBackCount = 0;
+      }
+      sDexOpen = i == 1;
+    }
+    ImGui::PopID();
+    const bool selected = (i == 1) == sDexOpen;
+    draw->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h), selected ? kAccent : kPanel, S(12.0f));
+    ImVec2 size = TextSize(sBold, S(16.0f), labels[i]);
+    TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + (w - size.x) * 0.5f, pos.y + (h - size.y) * 0.5f),
+           selected ? IM_COL32(16, 24, 34, 255) : kText, labels[i]);
+  }
+  ImGui::Dummy(ImVec2(0, S(2.0f)));
+  return sDexOpen;
+}
+
+// Caught: a ball; seen: a ring; else a dot
+void SeenMark(ImDrawList *draw, ImVec2 center, u16 species) {
+  if (Gear_SpeciesCaught(species)) {
+    PokeBall(draw, center, S(7.0f));
+  } else if (Gear_SpeciesSeen(species)) {
+    draw->AddCircle(center, S(6.0f), kTextDim, 0, S(2.0f));
+  } else {
+    draw->AddCircleFilled(center, S(2.5f), kTextDim);
+  }
+}
+
+void DrawDexList() {
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  if (sDexOrderCount == 0) {
+    sDexOrderCount = Gear_SpeciesByName(sDexOrder, MAX_SPECIES);
+  }
+  const float width = ImGui::GetContentRegionAvail().x;
+
+  // First letters: All, A-Z, in two rows
+  const float gap = S(4.0f);
+  const int perRow = 14;
+  const float bw = (width - gap * (perRow - 1)) / perRow;
+  const float bh = S(32.0f);
+  for (int i = 0; i < 27; i++) {
+    if (i % perRow != 0) {
+      ImGui::SameLine(0.0f, gap);
+    }
+    const int letter = i == 0 ? 0 : 'A' + i - 1;
+    char label[4];
+    snprintf(label, sizeof(label), "%s", i == 0 ? "All" : "");
+    if (i > 0) {
+      label[0] = (char)letter;
+      label[1] = '\0';
+    }
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::PushID(i);
+    if (Tap("letter", ImVec2(bw, bh))) {
+      sDexLetter = letter;
+      ImGui::SetScrollY(0.0f);
+    }
+    ImGui::PopID();
+    const bool selected = sDexLetter == letter;
+    draw->AddRectFilled(pos, ImVec2(pos.x + bw, pos.y + bh), selected ? kAccent : kPanel, S(8.0f));
+    const float fontSize = i == 0 ? S(13.0f) : S(15.0f);
+    ImVec2 size = TextSize(sBold, fontSize, label);
+    TextAt(draw, sBold, fontSize, ImVec2(pos.x + (bw - size.x) * 0.5f, pos.y + (bh - size.y) * 0.5f),
+           selected ? IM_COL32(16, 24, 34, 255) : kText, label);
+  }
+
+  // The species to list
+  static u16 shown[MAX_SPECIES];
+  int count = 0;
+  for (int i = 0; i < sDexOrderCount; i++) {
+    const u16 species = sDexOrder[i];
+    const char *name = Gear_SpeciesName(species);
+    if (sDexLetter != 0 && name[0] != sDexLetter) {
+      continue;
+    }
+    if (Discovery() != GEAR_DISCOVERY_EVERYTHING && !Gear_SpeciesSeen(species)) {
+      continue;
+    }
+    shown[count++] = species;
+  }
+  ImGui::Dummy(ImVec2(0, S(2.0f)));
+  if (count == 0) {
+    ImGui::TextDisabled(Discovery() == GEAR_DISCOVERY_EVERYTHING ? "No Pokemon by that letter."
+                                                                 : "No Pokemon you've seen by that letter yet.");
+    return;
+  }
+  ImGui::TextColored(ImColor(kTextDim), "%d Pokemon%s", count,
+                     Discovery() == GEAR_DISCOVERY_EVERYTHING ? "" : " you've seen (the Guide hides the rest)");
+
+  const float rowHeight = S(36.0f);
+  const float iconSize = PixelSize(S(32.0f), 32.0f);
+  ImGuiListClipper clipper;
+  clipper.Begin(count, rowHeight + ImGui::GetStyle().ItemSpacing.y);
+  while (clipper.Step()) {
+    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
+      const u16 species = shown[i];
+      ImVec2 pos = ImGui::GetCursorScreenPos();
+      ImGui::PushID(species);
+      const bool tapped = Tap("species", ImVec2(width, rowHeight));
+      const bool held = ImGui::IsItemActive() && !sDragging;
+      ImGui::PopID();
+      draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), held ? kPanelPressed : kPanel, S(8.0f));
+      SeenMark(draw, ImVec2(pos.x + S(16.0f), pos.y + rowHeight * 0.5f), species);
+      DrawIcon(draw, ImVec2(pos.x + S(28.0f), pos.y + (rowHeight - iconSize) * 0.5f - S(2.0f)), iconSize, species, 0, false);
+      TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + S(66.0f), pos.y + S(8.0f)), kText, Gear_SpeciesName(species));
+      char number[8];
+      snprintf(number, sizeof(number), "#%03u", (unsigned)species);
+      TextAt(draw, sRegular, S(13.0f), ImVec2(pos.x + S(66.0f) + TextSize(sBold, S(16.0f), Gear_SpeciesName(species)).x + S(8.0f), pos.y + S(10.0f)),
+             kTextDim, number);
+      u8 t1, t2;
+      Gear_SpeciesTypes(species, &t1, &t2);
+      float chipsWidth = TypeChip(draw, ImVec2(0, -1000.0f), t1, S(20.0f)) + (t2 != t1 ? S(6.0f) + TypeChip(draw, ImVec2(0, -1000.0f), t2, S(20.0f)) : 0.0f);
+      TypeChips(draw, ImVec2(pos.x + width - S(8.0f) - chipsWidth, pos.y + (rowHeight - S(20.0f)) * 0.5f), t1, t2, S(20.0f));
+      if (tapped) {
+        OpenSpecies(species);
+      }
+    }
+  }
+  clipper.End();
+}
+
+// Section heading inside a species page
+void DexHeading(const char *text) {
+  ImGui::Dummy(ImVec2(0, S(6.0f)));
+  ImGui::PushFont(sBold, S(16.0f));
+  ImGui::TextColored(ImColor(kAccent), "%s", text);
+  ImGui::PopFont();
+}
+
+// Moves as wrapped names in their type's colour
+void WrappedMoves(const u16 *moves, int count, const char *const *prefixes) {
+  bool first = true;
+  for (int i = 0; i < count; i++) {
+    GearMove info;
+    Gear_MoveInfo(moves[i], &info);
+    char text[48];
+    snprintf(text, sizeof(text), "%s%s", prefixes != nullptr ? prefixes[i] : "", Gear_MoveName(moves[i]));
+    if (!first) {
+      ImGui::SameLine(0.0f, S(4.0f));
+      ImGui::TextColored(ImColor(kTextDim), "/");
+      ImGui::SameLine(0.0f, S(4.0f));
+      if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(text).x) {
+        ImGui::NewLine();
+      }
+    }
+    ImGui::TextColored(ImColor(TypeColor(info.type)), "%s", text);
+    first = false;
+  }
+}
+
+void DrawSpeciesPage() {
+  if (sDexLoaded != sDexSpecies) {
+    Gear_GetSpecies(sDexSpecies, &sDexData);
+    sDexLoaded = sDexSpecies;
+  }
+  const GearSpecies &d = sDexData;
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const float width = ImGui::GetContentRegionAvail().x;
+
+  // Back: the page before, else the list
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  char backLabel[40];
+  snprintf(backLabel, sizeof(backLabel), "< %s", sDexBackCount > 0 ? Gear_SpeciesName(sDexBack[sDexBackCount - 1]) : "All Pokemon");
+  const float backWidth = TextSize(sBold, S(15.0f), backLabel).x + S(28.0f);
+  if (Tap("dexback", ImVec2(backWidth, S(34.0f)))) {
+    sDexSpecies = sDexBackCount > 0 ? sDexBack[--sDexBackCount] : 0;
+    ImGui::SetScrollY(0.0f);
+  }
+  draw->AddRectFilled(pos, ImVec2(pos.x + backWidth, pos.y + S(34.0f)), kPanel, S(14.0f));
+  TextAt(draw, sBold, S(15.0f), ImVec2(pos.x + S(14.0f), pos.y + S(8.0f)), kText, backLabel);
+
+  // Portrait at the top right
+  const float portrait = PixelSize(S(120.0f), 80.0f);
+  const float portraitBottom = pos.y + portrait;
+  DrawFront(draw, ImVec2(pos.x + width - portrait, pos.y), portrait, d.species, 0, false, false, 0, 0);
+
+  ImGui::Dummy(ImVec2(0, S(2.0f)));
+  ImGui::PushFont(sBold, S(24.0f));
+  ImGui::TextUnformatted(Gear_SpeciesName(d.species));
+  ImGui::PopFont();
+  ImGui::SameLine();
+  if (d.sinnohNumber != 0) {
+    ImGui::TextColored(ImColor(kTextDim), "#%03u  Sinnoh #%03u", (unsigned)d.species, (unsigned)d.sinnohNumber);
+  } else {
+    ImGui::TextColored(ImColor(kTextDim), "#%03u", (unsigned)d.species);
+  }
+  pos = ImGui::GetCursorScreenPos();
+  float chips = TypeChips(draw, pos, d.types[0], d.types[1], S(24.0f));
+  ImGui::Dummy(ImVec2(chips, S(28.0f)));
+  ImGui::TextColored(ImColor(Gear_SpeciesCaught(d.species) ? kGood : kTextDim), "%s",
+                     Gear_SpeciesCaught(d.species) ? "Caught" : (Gear_SpeciesSeen(d.species) ? "Seen, not caught" : "Not seen yet"));
+  if (ImGui::GetCursorScreenPos().y < portraitBottom) {
+    ImGui::Dummy(ImVec2(0, portraitBottom - ImGui::GetCursorScreenPos().y));
+  }
+
+  // Base stats
+  DexHeading("Base stats");
+  const char *statNames[6] = {"HP", "Attack", "Defense", "Sp. Atk", "Sp. Def", "Speed"};
+  int total = 0;
+  for (int i = 0; i < 6; i++) {
+    total += d.baseStats[i];
+    pos = ImGui::GetCursorScreenPos();
+    TextAt(draw, sRegular, S(15.0f), pos, kTextDim, statNames[i]);
+    char value[8];
+    snprintf(value, sizeof(value), "%d", d.baseStats[i]);
+    TextAt(draw, sBold, S(15.0f), ImVec2(pos.x + S(80.0f), pos.y), kText, value);
+    const float barX = pos.x + S(118.0f);
+    const int v = d.baseStats[i];
+    const ImU32 color = v >= 120 ? kGood : (v >= 80 ? IM_COL32(150, 210, 90, 255) : (v >= 50 ? kWarn : kBad));
+    Bar(draw, ImVec2(barX, pos.y + S(5.0f)), ImVec2(width - (barX - pos.x), S(9.0f)), v / 200.0f, color);
+    ImGui::Dummy(ImVec2(width, S(20.0f)));
+  }
+  ImGui::TextColored(ImColor(kTextDim), "Total %d", total);
+
+  // Abilities, breeding and the rest
+  DexHeading("About");
+  if (d.abilities[1] != 0 && d.abilities[1] != d.abilities[0]) {
+    ImGui::Text("Abilities: %s / %s", Gear_AbilityName(d.abilities[0]), Gear_AbilityName(d.abilities[1]));
+  } else {
+    ImGui::Text("Ability: %s", Gear_AbilityName(d.abilities[0]));
+  }
+  char gender[32];
+  if (d.genderRatio == 255) {
+    snprintf(gender, sizeof(gender), "Genderless");
+  } else if (d.genderRatio == 254) {
+    snprintf(gender, sizeof(gender), "Always female");
+  } else if (d.genderRatio == 0) {
+    snprintf(gender, sizeof(gender), "Always male");
+  } else {
+    snprintf(gender, sizeof(gender), "%d%% male", (int)((254 - d.genderRatio) * 100 + 127) / 254);
+  }
+  ImGui::Text("%s  Catch rate %d  %s", gender, d.catchRate, Gear_ExpRateName(d.expRate));
+  if (d.eggGroups[1] != d.eggGroups[0]) {
+    ImGui::Text("Egg groups: %s / %s, hatches in %d steps", Gear_EggGroupName(d.eggGroups[0]),
+                Gear_EggGroupName(d.eggGroups[1]), (d.hatchCycles + 1) * 255);
+  } else {
+    ImGui::Text("Egg group: %s, hatches in %d steps", Gear_EggGroupName(d.eggGroups[0]), (d.hatchCycles + 1) * 255);
+  }
+  char evs[64] = "";
+  size_t used = 0;
+  const char *evNames[6] = {"HP", "Atk", "Def", "SpA", "SpD", "Spe"};
+  for (int i = 0; i < 6; i++) {
+    if (d.evYield[i] > 0) {
+      used += snprintf(evs + used, sizeof(evs) - used, "%s%d %s", used ? ", " : "", d.evYield[i], evNames[i]);
+    }
+  }
+  ImGui::Text("EVs: %s", evs[0] ? evs : "-");
+  if (d.heldItems[0] != 0 || d.heldItems[1] != 0) {
+    if (d.heldItems[0] != 0 && d.heldItems[0] == d.heldItems[1]) {
+      ImGui::Text("Wild ones hold: %s (always)", Gear_ItemName(d.heldItems[0]));
+    } else if (d.heldItems[0] != 0 && d.heldItems[1] != 0) {
+      ImGui::Text("Wild ones hold: %s (50%%), %s (5%%)", Gear_ItemName(d.heldItems[0]), Gear_ItemName(d.heldItems[1]));
+    } else {
+      ImGui::Text("Wild ones hold: %s (%s)", Gear_ItemName(d.heldItems[0] ? d.heldItems[0] : d.heldItems[1]),
+                  d.heldItems[0] ? "50%" : "5%");
+    }
+  }
+
+  // Evolution: from, into (tap to open)
+  if (d.preEvoCount > 0 || d.evoCount > 0) {
+    DexHeading("Evolution");
+    const float iconSize = PixelSize(S(32.0f), 32.0f);
+    auto row = [&](const GearDexEvolution &evo, const char *direction) {
+      char how[96];
+      Gear_EvolutionText(&evo, how, sizeof(how));
+      ImVec2 p = ImGui::GetCursorScreenPos();
+      ImGui::PushID(evo.species);
+      ImGui::PushID(direction);
+      const bool tapped = Tap("evo", ImVec2(width, S(38.0f)));
+      const bool held = ImGui::IsItemActive() && !sDragging;
+      ImGui::PopID();
+      ImGui::PopID();
+      draw->AddRectFilled(p, ImVec2(p.x + width, p.y + S(38.0f)), held ? kPanelPressed : kPanel, S(8.0f));
+      const bool known = DexCanShow(evo.species);
+      DrawIcon(draw, ImVec2(p.x + S(4.0f), p.y + (S(38.0f) - iconSize) * 0.5f - S(2.0f)), iconSize, evo.species, 0, false, 0.0f,
+               known ? IM_COL32_WHITE : IM_COL32(0, 0, 0, 255));
+      char text[128];
+      snprintf(text, sizeof(text), "%s %s", direction, known ? Gear_SpeciesName(evo.species) : "???");
+      TextAt(draw, sBold, S(15.0f), ImVec2(p.x + S(42.0f), p.y + S(3.0f)), kText, text);
+      TextAt(draw, sRegular, S(13.0f), ImVec2(p.x + S(42.0f), p.y + S(20.0f)), kTextDim, how);
+      if (tapped && known) {
+        OpenSpecies(evo.species);
+      }
+    };
+    for (int i = 0; i < d.preEvoCount; i++) {
+      row(d.preEvos[i], "From");
+    }
+    for (int i = 0; i < d.evoCount; i++) {
+      row(d.evos[i], "Into");
+    }
+  }
+
+  // Where to find it
+  DexHeading("Where to find it");
+  if (d.placeCount == 0) {
+    ImGui::TextDisabled("Not in the wild: an egg, an evolution, a gift or a one-off.");
+  }
+  // One row per place, its ways of finding it under the name
+  bool listed[GEAR_DEX_MAX_PLACES] = {};
+  for (int i = 0; i < d.placeCount; i++) {
+    if (listed[i]) {
+      continue;
+    }
+    char detail[256] = "";
+    size_t used = 0;
+    for (int j = i; j < d.placeCount; j++) {
+      const GearDexPlace &place = d.places[j];
+      if (place.label != d.places[i].label || listed[j]) {
+        continue;
+      }
+      listed[j] = true;
+      char levels[16];
+      if (place.minLevel == place.maxLevel) {
+        snprintf(levels, sizeof(levels), "Lv %d", place.minLevel);
+      } else {
+        snprintf(levels, sizeof(levels), "Lv %d-%d", place.minLevel, place.maxLevel);
+      }
+      char rate[48] = "";
+      const u8 *r = place.rates;
+      if (place.method == GEAR_ENC_GBA) {
+        static const char *const kGames[5] = {"Ruby", "Sapphire", "Emerald", "FireRed", "LeafGreen"};
+        size_t n = 0;
+        for (int g = 0; g < 5; g++) {
+          if (place.gbaGames & (1 << g)) {
+            n += snprintf(rate + n, sizeof(rate) - n, "%s%s", n ? "/" : "", kGames[g]);
+          }
+        }
+      } else if (r[0] == r[1] && r[1] == r[2]) {
+        if (r[0] > 0) {
+          snprintf(rate, sizeof(rate), "%d%%", r[0]);
+        }
+      } else {
+        size_t n = 0;
+        const char *times[3] = {"morning", "day", "night"};
+        for (int t = 0; t < 3; t++) {
+          if (r[t] > 0) {
+            n += snprintf(rate + n, sizeof(rate) - n, "%s%d%% %s", n ? ", " : "", r[t], times[t]);
+          }
+        }
+      }
+      if (used < sizeof(detail)) {
+        used += snprintf(detail + used, sizeof(detail) - used, "%s%s %s%s%s", used ? "\n" : "", MethodName(place.method),
+                         levels, rate[0] ? "  " : "", rate);
+      }
+    }
+    int lines = 1;
+    for (const char *c = detail; *c; c++) {
+      lines += *c == '\n';
+    }
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    const float h = S(22.0f) + lines * S(17.0f);
+    draw->AddRectFilled(p, ImVec2(p.x + width, p.y + h), kPanel, S(8.0f));
+    TextAt(draw, sBold, S(15.0f), ImVec2(p.x + S(10.0f), p.y + S(3.0f)), kText, Gear_LocationLabelName(d.places[i].label));
+    TextAt(draw, sRegular, S(13.0f), ImVec2(p.x + S(10.0f), p.y + S(21.0f)), kTextDim, detail);
+    ImGui::Dummy(ImVec2(width, h));
+  }
+
+  // Moves
+  DexHeading("Level-up moves");
+  for (int i = 0; i < d.levelMoveCount; i++) {
+    GearMove info;
+    Gear_MoveInfo(d.levelMoves[i].move, &info);
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    char level[8];
+    snprintf(level, sizeof(level), "%d", d.levelMoves[i].level);
+    TextAt(draw, sRegular, S(14.0f), ImVec2(p.x, p.y + S(3.0f)), kTextDim, level);
+    float chip = TypeChip(draw, ImVec2(p.x + S(30.0f), p.y + S(1.0f)), info.type, S(20.0f));
+    TextAt(draw, sBold, S(15.0f), ImVec2(p.x + S(36.0f) + chip, p.y + S(2.0f)), kText, Gear_MoveName(info.id));
+    char stats[24];
+    const char *category = info.category == 0 ? "Phys" : (info.category == 1 ? "Spec" : "Status");
+    if (info.power > 1) {
+      snprintf(stats, sizeof(stats), "%s %d", category, info.power);
+    } else {
+      snprintf(stats, sizeof(stats), "%s", category);
+    }
+    ImVec2 statsSize = TextSize(sRegular, S(13.0f), stats);
+    TextAt(draw, sRegular, S(13.0f), ImVec2(p.x + width - statsSize.x, p.y + S(4.0f)), kTextDim, stats);
+    ImGui::Dummy(ImVec2(width, S(20.0f)));
+  }
+  if (d.tmCount > 0) {
+    DexHeading("TMs and HMs");
+    static u16 moves[100];
+    static char prefixBuf[100][8];
+    static const char *prefixes[100];
+    for (int i = 0; i < d.tmCount; i++) {
+      moves[i] = Gear_TMMove(d.tms[i]);
+      if (d.tms[i] < 92) {
+        snprintf(prefixBuf[i], sizeof(prefixBuf[i]), "TM%02d ", d.tms[i] + 1);
+      } else {
+        snprintf(prefixBuf[i], sizeof(prefixBuf[i]), "HM%02d ", d.tms[i] - 91);
+      }
+      prefixes[i] = prefixBuf[i];
+    }
+    WrappedMoves(moves, d.tmCount, prefixes);
+  }
+  if (d.eggMoveCount > 0) {
+    DexHeading("Egg moves");
+    WrappedMoves(d.eggMoves, d.eggMoveCount, nullptr);
+  }
+  if (d.tutorMoveCount > 0) {
+    DexHeading("Move tutors");
+    WrappedMoves(d.tutorMoves, d.tutorMoveCount, nullptr);
+  }
+}
+
+void DrawDex() {
+  if (sDexSpecies != 0) {
+    DrawSpeciesPage();
+  } else {
+    DrawDexList();
   }
 }
 

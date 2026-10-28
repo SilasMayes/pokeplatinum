@@ -77,6 +77,7 @@ enum GearEncounterMethod {
     GEAR_ENC_SUPER_ROD,
     GEAR_ENC_RADAR,      // Poke Radar (replaces some grass slots while it is in use)
     GEAR_ENC_SWARM,      // replaces grass slots while a swarm is reported here
+    GEAR_ENC_GBA,        // replaces grass slots with a GBA game in the DS's GBA slot
     GEAR_ENC_METHOD_COUNT,
 };
 
@@ -259,6 +260,9 @@ const char *Gear_TypeName(u8 type);
 const char *Gear_LocationName(int mapHeaderID);
 const char *Gear_LocationLabelName(int labelTextID); // by the map's label (location name) ID
 int Gear_CurrentLocationLabel(void);                 // the player's, -1 outside a game
+
+// A move's type, power, accuracy and category (pp left 0)
+void Gear_MoveInfo(u16 move, GearMove *out);
 
 // Type effectiveness in tenths (0, 5, 10, 20) of attackType against defender types
 int Gear_TypeEffectiveness(u8 attackType, u8 defenderType1, u8 defenderType2);

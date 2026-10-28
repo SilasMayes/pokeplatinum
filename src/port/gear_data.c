@@ -783,6 +783,11 @@ static void FillMove(GearMove *out, u16 id, int pp, int maxPp)
     out->maxPp = maxPp;
 }
 
+void Gear_MoveInfo(u16 move, GearMove *out)
+{
+    FillMove(out, move, 0, 0);
+}
+
 BOOL Gear_GetBattleMenu(GearBattleMenu *out)
 {
     memset(out, 0, sizeof(*out));
