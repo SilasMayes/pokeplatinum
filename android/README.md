@@ -43,9 +43,13 @@ next page.
   choose at launch.
 * **Saves**: save slots, import / export, autosave, save now.
 * **Save editor**: see below.
-* **Gameplay**: instant text and HP/EXP bars, field moves without HMs, the hard level
-  cap, the game clock (hours and days ahead of the device's), the Nuzlocke helper, 60
-  FPS options, drawing every DS frame.
+* **Gameplay**: instant text and HP/EXP bars, field moves without HMs, *Use another
+  Repel?* (on by default: when a Repel wears off and the bag has another, the game asks,
+  as in Black and White; Yes uses the same kind as last time, or the weakest), *Exp. Share
+  for the whole party* (off by default: as in X and Y, the Pokemon that battled each get
+  all the EXP and the rest of the party half), the hard level cap, the game clock (hours
+  and days ahead of the device's), the Nuzlocke helper, 60 FPS options, drawing every DS
+  frame.
 * **Display**: 3D sharpness and edge smoothing, second display, layout, swap screens,
   widescreen (experimental), texture packs, vsync.
 * **GBA slot**: a Ruby, Sapphire, Emerald, FireRed or LeafGreen save in the DS's GBA
@@ -174,6 +178,15 @@ Pokegear and Kanto Gear:
 * **Party**: each Pokemon's icon (hopping like in the party menu, slower when it's
   hurt), HP, status and level at a glance; tap a Pokemon for its portrait (its battle
   sprite, shiny colors included), moves, stats, ability, nature and item.
+  Below the party, the **eggs** you carry with about how many steps each still needs
+  (Flame Body and Magma Armor counted), and the **Day Care**: its two Pokemon with the
+  levels they've gained, how well they get along (as the Day Care Man says it) with the
+  chance of an egg every 256 steps and the steps to the next check, whether an egg is
+  waiting, what the egg would be (incense babies included), the Everstone's nature, how
+  IVs pass on, the Masuda method, and the moves the egg would hatch with (egg moves, TMs
+  and level-up moves both parents know, Volt Tackle with a Light Ball), worked out the
+  way the game's Day Care does it. With *Everything* revealed, the parents' IVs and
+  natures too.
 * **Area**: the wild Pokemon of the route you are on for the current time of day
   (walking, surfing, each rod, Poke Radar, swarms and the GBA slot's game) with their
   icons, rates and levels, and which ones you have caught. Tap one to look it up in the
@@ -193,8 +206,20 @@ Pokegear and Kanto Gear:
   moves and tutor moves. It's all read from the ROM, so Renegade Platinum shows its own
   stats, learnsets, evolutions and encounters. Species you haven't seen stay hidden
   unless the Gear reveals *Everything*.
+* **Berries** (the third switch in Area): your berry patches, the soonest ripe first,
+  with where they are, their stage, how long until they're ripe (and the game clock's
+  time then), about how many berries, whether the soil needs water and the mulch; ripe
+  ones show how long the berries keep. Below, the trees around Sinnoh that start with
+  berries, until you pick them.
 * **Pokétch** (once you have it): the Pokétch itself, bigger, on the whole lower panel.
   Tap its screen and its buttons as usual; the app's name is shown with it.
+* **PC**: the boxes as they are, one at a time with each Pokemon's level (shiny ones
+  marked), and a list of the species in your PC, A to Z, with how many and in which
+  boxes: tap one to see where they are. **Sort** a box, or all of them (filling them in
+  order from Box 1), by Pokedex number, name, level or type, eggs last. **Bag**: sort
+  every pocket by name or by number (TMs and berries stay by number). The PC tab works
+  while you're walking around, like the save editor, since the game's own PC and bag
+  use the same data.
 * **Trainer**: money, badges, Pokedex counts, play time and the save slot. Below, the
   **level cap** (the level of the next gym leader's strongest Pokemon, the Champion's
   after 8 badges; Pokemon over it show in yellow here and in Party) and the **bosses**:
