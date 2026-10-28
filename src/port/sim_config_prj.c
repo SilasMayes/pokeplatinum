@@ -129,6 +129,11 @@ static int IniHandler(void* user, const char* section, const char* name,
         config->gearDiscovery = atoi(value);
     }
 
+    // GBA slot section
+    if(MATCH("GBA", "Game")) {
+        config->gbaSlotGame = atoi(value);
+    }
+
     return 1;
 }
 
@@ -195,6 +200,9 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   aConfig->gearEnabled = TRUE;
   aConfig->gearDiscovery = GEAR_DISCOVERY_GUIDE;
   aConfig->gearBattleControls = TRUE;
+
+  // GBA slot section
+  aConfig->gbaSlotGame = 0;
 }
 
 // Loads the configuration file. If it does not exist, return false
@@ -256,6 +264,10 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "Enabled=%s\n", BoolToString(aConfig->gearEnabled));
     fprintf(configFile, "Discovery=%d\n", aConfig->gearDiscovery);
     fprintf(configFile, "BattleControls=%s\n", BoolToString(aConfig->gearBattleControls));
+    fprintf(configFile, "\n");
+
+    fprintf(configFile, "[GBA]\n");
+    fprintf(configFile, "Game=%d\n", aConfig->gbaSlotGame);
 
     fclose(configFile);
 }

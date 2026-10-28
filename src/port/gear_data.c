@@ -13,6 +13,7 @@
 #include "constants/narc.h"
 #include "constants/species.h"
 #include "constants/string.h"
+#include "constants/versions.h"
 #include "constants/wild_encounters.h"
 #include "generated/abilities.h"
 #include "generated/badges.h"
@@ -645,10 +646,37 @@ void Gear_GetArea(GearArea *out)
     }
     const WildEncounters *data = MapHeaderData_GetWildEncounters(fieldSystem);
 
+    // A GBA game in the slot (port/gba_slot.h) takes the two 4% slots, once the player has
+    // the National Pokedex (WildEncounters_ReplaceDualSlotEncounters)
+    const int *dualSlot = NULL;
+    if (Pokedex_IsNationalDexObtained(SaveData_GetPokedex(fieldSystem->saveData))) {
+        switch (gSystem.gbaCartridgeVersion) {
+        case VERSION_RUBY:
+            dualSlot = data->dualSlotRubyEncounters;
+            break;
+        case VERSION_SAPPHIRE:
+            dualSlot = data->dualSlotSapphireEncounters;
+            break;
+        case VERSION_EMERALD:
+            dualSlot = data->dualSlotEmeraldEncouters;
+            break;
+        case VERSION_FIRERED:
+            dualSlot = data->dualSlotFireredEncounters;
+            break;
+        case VERSION_LEAFGREEN:
+            dualSlot = data->dualSlotLeafgreenEncounters;
+            break;
+        }
+    }
+
     if (data->grassEncounters.encounterRate != 0) {
         for (int i = 0; i < MAX_GRASS_ENCOUNTERS; i++) {
             const GrassEncounter *enc = &data->grassEncounters.encounters[i];
             int species = enc->species;
+            if (dualSlot != NULL && (i == 8 || i == 9)) {
+                AddEncounter(out, GEAR_ENC_GBA, dualSlot[i - 8], enc->level, enc->level, sGrassRates[i]);
+                continue;
+            }
 
             // Slots 3 and 4 follow the time of day, like WildEncounters_ReplaceTimedEncounters
             if (i == 2 || i == 3) {

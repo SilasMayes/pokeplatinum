@@ -24,6 +24,7 @@
 
 #include "port/cheats.h"
 #include "port/gear_data.h"
+#include "port/gba_slot.h"
 #include "port/gear_dex.h"
 #include "port/gear_sprites.h"
 #include "port/rom_patches.h"
@@ -1012,7 +1013,12 @@ void DrawArea() {
       method = enc.method;
       ImGui::Dummy(ImVec2(0, S(4.0f)));
       ImGui::PushFont(sBold, S(16.0f));
-      ImGui::TextColored(ImColor(kAccent), "%s", MethodName(method));
+      if (method == GEAR_ENC_GBA && GBASlot_Game() != GBA_SLOT_NONE) {
+        // Only the slot's game's are listed here (Settings > GBA slot)
+        ImGui::TextColored(ImColor(kAccent), "With %s in the GBA slot", GBASlot_GameName(GBASlot_Game()));
+      } else {
+        ImGui::TextColored(ImColor(kAccent), "%s", MethodName(method));
+      }
       ImGui::PopFont();
     }
 

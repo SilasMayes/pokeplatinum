@@ -374,11 +374,19 @@ static BOOL ShowWFCUserInfoErasedMsg(MainMenuAppData *appData)
 
 static void DetectGBAGame(MainMenuAppData *appData)
 {
+#ifdef SDK_PORT
+    // The overlay's state isn't reset by reloading it on the port, and the slot's game can
+    // have changed since the last time (port/gba_slot.h)
+    ResetLoadedGBACartInfo();
+#endif
     int gbaCartInfoLoadError = ov97_02235D2C(NULL);
 
     appData->agbGameType = 0;
 
     if (gbaCartInfoLoadError) {
+#ifdef SDK_PORT
+        SetGBACartridgeVersion(VERSION_NONE);
+#endif
         return;
     }
 

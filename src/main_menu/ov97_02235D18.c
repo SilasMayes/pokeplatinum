@@ -166,7 +166,21 @@ int ov97_02235D2C(GBASaveSlot *saveSlot)
         sGBAPokemonGameHeader.flagsOffset = 4640;
         sGBAPokemonGameHeader.warpFlagsOffset = 9;
     } else {
+#ifdef SDK_PORT
+        // The port's GBA slot (port/gba_slot.h) has the cartridge header but not the game's
+        // own header at 0x100 (which is laid out with 32-bit pointers, unlike this struct on a
+        // 64-bit port): the two sizes Platinum uses from it, as Emerald and FireRed/LeafGreen
+        // have them
+        if (sLoadedGBACartInfo->gameSet == AGB_SET_EMERALD) {
+            sGBAPokemonGameHeader.saveBlock2Size = 0xF2C;
+            sGBAPokemonGameHeader.saveBlock1Size = 0x3D88;
+        } else {
+            sGBAPokemonGameHeader.saveBlock2Size = 0xF24;
+            sGBAPokemonGameHeader.saveBlock1Size = 0x3D68;
+        }
+#else
         CTRDG_CpuCopy32((void *)0x8000100, (void *)&sGBAPokemonGameHeader, sizeof(GBAPkmnGameHeader));
+#endif
     }
 
     if (!ov97_02235D18()) {

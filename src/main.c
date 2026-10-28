@@ -35,6 +35,7 @@
 
 #ifdef SDK_PORT
 #include "port/frame_rate.h"
+#include "port/gba_slot.h"
 #include "port/rom_patches.h"
 #include "port/sim_config_prj.h"
 #include "port/save_slots.h"
@@ -91,6 +92,9 @@ void NitroMain(void)
     InitKeypadAndTouchpad();
 
     SetGBACartridgeVersion(VERSION_NONE);
+#ifdef SDK_PORT
+    GBASlot_Init();
+#endif
     PM_GetBackLight(&sSavedBacklightState, NULL);
     sub_0202419C();
     InitRTC();

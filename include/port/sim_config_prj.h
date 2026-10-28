@@ -46,6 +46,9 @@ typedef struct {
     BOOL gearEnabled;
     int gearDiscovery; // GEAR_DISCOVERY_*: how much the Gear reveals
     BOOL gearBattleControls; // in battles the Gear takes the whole lower screen and has the battle menu
+
+    // GBA slot section (port/gba_slot.h)
+    int gbaSlotGame; // GBA_SLOT_*: the GBA game in the DS's GBA slot
 } SIM_Config_prj_type;
 
 enum {

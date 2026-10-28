@@ -1037,6 +1037,7 @@ pokeplatinum_c += files(
     'port/nuzlocke.c',
     'port/widescreen.c',
     'port/cheats.c',
+    'port/gba_slot.c',
     'port/gear_sprites.c',
     'port/gear_dex.c',
     'port/gui_saves.cpp',

@@ -17,6 +17,7 @@
 #include <string>
 
 #include "port/autosave.h"
+#include "port/gba_slot.h"
 #include "port/nuzlocke.h"
 #include "port/save_slots.h"
 #include "port/sim_config_prj.h"
@@ -459,6 +460,119 @@ void DrawCheats()
     ConfigToggle("Any Pokemon learns any TM or HM", "Every Pokemon can be taught every TM and HM.", &config->anyTM);
 }
 
+// --- GBA slot --------------------------------------------------------------------------------
+
+std::string sGBAStatus;
+bool sGBAError = false;
+
+void OnGBASavePicked(const char *path, void *)
+{
+    if (path == nullptr) {
+        return;
+    }
+    char message[200] = "";
+    if (GBASlot_ImportSave(path, message, sizeof(message))) {
+        sGBAStatus = message[0] != '\0' ? message : "Save inserted.";
+        sGBAError = false;
+    } else {
+        sGBAStatus = message;
+        sGBAError = true;
+    }
+#ifdef SDK_BUILD_ANDROID
+    // The picker made a private copy for us
+    remove(path);
+#endif
+}
+
+void OnGBASaveExported(BOOL saved, void *)
+{
+    sGBAStatus = saved ? "Save exported." : "";
+    sGBAError = false;
+}
+
+void DrawGBASlot()
+{
+    Note("A DS Lite has a GBA slot, and Platinum looks in it: with Ruby, Sapphire, Emerald, FireRed or LeafGreen there, "
+         "some grass gets Pokemon from that game (once you have the National Pokedex), and the main menu offers Migrate "
+         "from... to send Pokemon from its save to Pal Park.");
+
+    Section("Game in the slot");
+    const int game = GBASlot_Game();
+    BeginTiles("gba_games", 3);
+    for (int i = 0; i < GBA_SLOT_GAME_COUNT; i++) {
+        if (Tile(GBASlot_GameName(i), nullptr, game == i)) {
+            if (i != game) {
+                GBASlot_SetGame(i);
+                sGBAStatus.clear();
+            }
+        }
+    }
+    EndTiles();
+
+    Section("Its save");
+    const bool busy = SIM_Files_IsBusy() != FALSE;
+    const bool hasSave = GBASlot_HasSave() != FALSE;
+    if (hasSave) {
+        GBASlotSummary summary;
+        GBASlot_GetSummary(&summary);
+        char title[64];
+        char subtitle[160];
+        if (summary.valid) {
+            snprintf(title, sizeof(title), "%s, ID %05u", summary.name[0] != '\0' ? summary.name : "Player",
+                (unsigned)summary.trainerID);
+            snprintf(subtitle, sizeof(subtitle), "%u:%02u played. %u in the party, %u in the PC boxes.",
+                (unsigned)summary.hours, (unsigned)summary.minutes, (unsigned)summary.partyCount,
+                (unsigned)summary.boxedCount);
+            if (game != GBA_SLOT_NONE && summary.family != GBA_SLOT_NONE) {
+                const bool matches = (summary.family == GBA_SLOT_RUBY && (game == GBA_SLOT_RUBY || game == GBA_SLOT_SAPPHIRE))
+                    || (summary.family == GBA_SLOT_FIRERED && (game == GBA_SLOT_FIRERED || game == GBA_SLOT_LEAFGREEN))
+                    || (summary.family == GBA_SLOT_EMERALD && game == GBA_SLOT_EMERALD);
+                if (!matches) {
+                    snprintf(subtitle, sizeof(subtitle), "%s save, not %s's: choose %s above, or another save.",
+                        summary.family == GBA_SLOT_RUBY ? "A Ruby or Sapphire" : summary.family == GBA_SLOT_FIRERED
+                            ? "A FireRed or LeafGreen" : "An Emerald",
+                        GBASlot_GameName(game), summary.family == GBA_SLOT_RUBY ? "Ruby or Sapphire"
+                            : summary.family == GBA_SLOT_FIRERED ? "FireRed or LeafGreen" : "Emerald");
+                }
+            }
+        } else if (game == GBA_SLOT_NONE) {
+            snprintf(title, sizeof(title), "A GBA save");
+            snprintf(subtitle, sizeof(subtitle), "Choose its game above.");
+        } else {
+            snprintf(title, sizeof(title), "A GBA save");
+            snprintf(subtitle, sizeof(subtitle), "No saved game in it that Platinum can read.");
+        }
+        Card(title, subtitle);
+    } else {
+        Note("No save: the dual-slot Pokemon still appear, but there's nothing to migrate.");
+    }
+
+    if (Button(hasSave ? "Choose another save" : "Choose a save",
+            "A .sav from a GBA emulator (mGBA, VBA, RetroArch...). Platinum works on its own copy: the file you choose "
+            "isn't changed.",
+            !hasSave, !busy)) {
+        sGBAStatus.clear();
+        SIM_Files_PickToOpen("GBA save (.sav)", ".sav,.srm,.fla,.*", OnGBASavePicked, nullptr);
+    }
+    if (hasSave) {
+        if (Button("Export the save", "Migrating takes Pokemon out of the GBA save, as from the cartridge. Export it to "
+                   "carry on with that save in an emulator.", false, !busy)) {
+            sGBAStatus.clear();
+            char name[64];
+            snprintf(name, sizeof(name), "Pokemon %s.sav", game != GBA_SLOT_NONE ? GBASlot_GameName(game) : "GBA");
+            SIM_Files_SaveCopy("Export GBA save", GBASlot_SavePath(), name, OnGBASaveExported, nullptr);
+        }
+        if (Button("Take the save out", nullptr, false, !busy)) {
+            GBASlot_RemoveSave();
+            sGBAStatus = "Save taken out.";
+            sGBAError = false;
+        }
+    }
+    Status(sGBAStatus.c_str(), sGBAError);
+    Note("Migrate from... appears on the main menu when it next opens, once you have the National Pokedex. The GBA game "
+         "must be in the same language as this one.");
+}
+
 // --- Debugging (on the Advanced page) --------------------------------------------------------
 
 void DrawDebug()
@@ -481,6 +595,7 @@ void SIM_Prj_SettingsPages()
     SIM::Settings::AddPage("Saves", "Slots, autosave, import and export", DrawSaves, 20);
     SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
     SIM::Settings::AddPage("Gameplay", "Instant text, HM-free moves, level cap, clock, Nuzlocke, 60 FPS", DrawGameplay, 30);
+    SIM::Settings::AddPage("GBA slot", "Pal Park and dual-slot Pokemon from a GBA save", DrawGBASlot, 40);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
     SIM::Settings::AddPage("Cheats", "Shiny odds, EXP, catching, PP, walls, encounters", DrawCheats, 80);
     SIM::Settings::AddPage("Advanced", nullptr, DrawDebug, 90);
