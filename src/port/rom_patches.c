@@ -1,5 +1,6 @@
 // Tables and instructions of ROM hacks; see include/port/rom_patches.h
 #include "port/rom_patches.h"
+#include "port/randomizer.h"
 
 #include <nitro.h>
 #include <stdio.h>
@@ -457,4 +458,10 @@ void RomPatches_DescribeRom(const char *dir, char *name, int nameSize)
 void SIM_Prj_CartName(const char *dir, char *name, int nameSize)
 {
     RomPatches_DescribeRom(dir, name, nameSize);
+    // A randomized game: its seed tells it apart (and names its save sync folder)
+    u32 seed;
+    if (Randomizer_FolderSeed(dir, &seed)) {
+        const size_t used = strlen(name);
+        snprintf(name + used, nameSize - used, " (randomized %u)", (unsigned)seed);
+    }
 }

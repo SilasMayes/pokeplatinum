@@ -46,10 +46,23 @@
 #include "unk_0202419C.h"
 #include "vram_transfer.h"
 
+#ifdef SDK_PORT
+#include "constants/charcode.h"
+#include "../port/charcode_convert.h"
+#include "port/randomizer.h"
+#endif
+
 #define NUM_STARTER_OPTIONS 3
+#ifdef SDK_PORT
+// A randomized game's starters (port/randomizer.h)
+#define STARTER_OPTION_0    Randomizer_Starter(0, SPECIES_TURTWIG)
+#define STARTER_OPTION_1    Randomizer_Starter(1, SPECIES_CHIMCHAR)
+#define STARTER_OPTION_2    Randomizer_Starter(2, SPECIES_PIPLUP)
+#else
 #define STARTER_OPTION_0    SPECIES_TURTWIG
 #define STARTER_OPTION_1    SPECIES_CHIMCHAR
 #define STARTER_OPTION_2    SPECIES_PIPLUP
+#endif
 
 #define OAM_MAIN_START 0
 #define OAM_MAIN_END   128
@@ -237,6 +250,9 @@ static void StartFadeIn(ChooseStarterApp *app);
 static void StartFadeOut(ChooseStarterApp *app);
 static BOOL IsFadeDone(ChooseStarterApp *app);
 static u16 GetSelectedSpecies(u16 cursorPosition);
+#ifdef SDK_PORT
+static void SetRandomStarterText(Window *window, enum HeapID heapID, int position, TextColor textColor);
+#endif
 static BOOL IsSelectionMade(ChooseStarterApp *app, enum HeapID heapID);
 static void UpdateGraphics(ChooseStarterApp *app, enum HeapID heapID);
 static void DrawScene(ChooseStarterApp *app);
@@ -1241,6 +1257,12 @@ static void AdvancePokeballConfirmGraphics(ChooseStarterApp *app, enum HeapID he
         }
         break;
     case CHOOSE_STARTER_STEP_UPDATE_CURSOR_POSITION:
+#ifdef SDK_PORT
+        if (Randomizer_HasStarters()) {
+            // The game's lines name Turtwig, Chimchar and Piplup
+            SetRandomStarterText(app->messageWindow, heapID, app->cursorPosition, TEXT_COLOR(1, 2, 15));
+        } else
+#endif
         SetMessageWindowText(app->messageWindow, heapID, 360, 1 + app->cursorPosition, TEXT_COLOR(1, 2, 15), TEXT_SPEED_NO_TRANSFER);
         app->confirmationMenu = Menu_MakeYesNoChoice(app->bgConfig, &app->confirmationMenuWindowTemplate, 512 + (18 + 12) + 128, 1, heapID);
         app->disableCursorMovement = FALSE;
@@ -1294,6 +1316,38 @@ static u8 SetMessageWindowText(Window *window, enum HeapID heapID, int bankID, i
 
     return printerID;
 }
+
+#ifdef SDK_PORT
+// "NAME!\nWill you take this Pokemon?", the name in the colour of the game's line for that
+// Poke Ball
+static void SetRandomStarterText(Window *window, enum HeapID heapID, int position, TextColor textColor)
+{
+    static const u8 kNameColors[NUM_STARTER_OPTIONS] = { 3, 1, 2 };
+    charcode_t text[96];
+    charcode_t name[32];
+    int length = 0;
+    MessageLoader_GetSpeciesName(GetSelectedSpecies(position), heapID, name);
+    text[length++] = 0xFFFE; // text colour
+    text[length++] = 0xFF00;
+    text[length++] = 1;
+    text[length++] = kNameColors[position % NUM_STARTER_OPTIONS];
+    for (int i = 0; i < 20 && name[i] != CHAR_EOS; i++) {
+        text[length++] = name[i];
+    }
+    text[length++] = 0xFFFE;
+    text[length++] = 0xFF00;
+    text[length++] = 1;
+    text[length++] = 0;
+    CharCode_FromAscii("!\nWill you take this Pok\x01mon?", text + length, (int)NELEMS(text) - length);
+
+    String *string = String_Init(NELEMS(text), heapID);
+    String_CopyChars(string, text);
+    Window_FillTilemap(window, 15);
+    Text_AddPrinterWithParamsAndColor(window, FONT_MESSAGE, string, 0, 0, TEXT_SPEED_NO_TRANSFER, textColor, NULL);
+    Window_DrawMessageBoxWithScrollCursor(window, FALSE, FRAME_TEXT_START, FRAME_TEXT_PALETTE_INDEX);
+    String_Free(string);
+}
+#endif
 
 static u8 PrintMessageToWindow(Window *window, enum HeapID heapID, int bankID, int entryID, TextColor textColor, u32 renderDelay, String **string)
 {

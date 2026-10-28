@@ -19,6 +19,7 @@
 #include "port/autosave.h"
 #include "port/gba_slot.h"
 #include "port/nuzlocke.h"
+#include "port/randomizer.h"
 #include "port/save_slots.h"
 #include "port/save_sync.h"
 #include "port/sim_config_prj.h"
@@ -58,6 +59,11 @@ bool ConfigToggle(const char *label, const char *help, BOOL *value, bool enabled
 std::string sGamesMessage;
 int sConfirmSwitch = -1;
 Uint64 sConfirmUntil = 0;
+
+void LogSaved(BOOL saved, void *)
+{
+    sGamesMessage = saved ? "Log saved." : "";
+}
 
 void GameAdded(BOOL ok, const char *id)
 {
@@ -130,6 +136,14 @@ void DrawGames()
                              "the app applies them.")) {
         sGamesMessage.clear();
         SIM_Carts_Add(GameAdded);
+    }
+    // A randomized game: what became what
+    const char *log = Randomizer_LogPath();
+    if (log != nullptr && Button("Save the randomizer's log", "Every Pokemon this game's randomizer changed: the "
+                                 "starters, each area's wild Pokemon and each trainer's team. Spoilers!",
+                                 false, SIM_Files_IsBusy() == FALSE)) {
+        std::string name = std::string(current->name) + " log.txt";
+        SIM_Files_SaveCopy("Save the randomizer's log", log, name.c_str(), LogSaved, nullptr);
     }
     bool ask = SIM_Carts_AskAtLaunch() != FALSE;
     if (Toggle("Choose the game when the app starts", "Only asked when more than one game is installed.", &ask)) {

@@ -1,5 +1,9 @@
 #include "system_vars.h"
 
+#ifdef SDK_PORT
+#include "port/randomizer.h"
+#endif
+
 #include "constants/savedata/vars_flags.h"
 #include "generated/map_headers.h"
 #include "generated/species.h"
@@ -77,6 +81,15 @@ u16 SystemVars_GetRivalStarter(VarsFlags *varsFlags)
     u16 rivalStarter;
     u16 playerStarter = TryGetVarValue(varsFlags, VAR_PLAYER_STARTER);
 
+#ifdef SDK_PORT
+    // A randomized game's starters: the rival takes the one to the right, as with the
+    // originals (Turtwig > Chimchar > Piplup > Turtwig)
+    const int index = Randomizer_StarterIndex(playerStarter);
+    if (index >= 0) {
+        return Randomizer_Starter((index + 1) % 3, SPECIES_CHIMCHAR);
+    }
+#endif
+
     if (playerStarter == SPECIES_TURTWIG) {
         rivalStarter = SPECIES_CHIMCHAR;
     } else if (playerStarter == SPECIES_CHIMCHAR) {
@@ -92,6 +105,14 @@ u16 SystemVars_GetPlayerCounterpartStarter(VarsFlags *varsFlags)
 {
     u16 counterpartStarter;
     u16 playerStarter = TryGetVarValue(varsFlags, VAR_PLAYER_STARTER);
+
+#ifdef SDK_PORT
+    // A randomized game's starters: Dawn/Lucas takes the one left over
+    const int index = Randomizer_StarterIndex(playerStarter);
+    if (index >= 0) {
+        return Randomizer_Starter((index + 2) % 3, SPECIES_PIPLUP);
+    }
+#endif
 
     if (playerStarter == SPECIES_TURTWIG) {
         counterpartStarter = SPECIES_PIPLUP;
