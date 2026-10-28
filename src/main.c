@@ -37,6 +37,7 @@
 #include "port/frame_rate.h"
 #include "port/gba_slot.h"
 #include "port/rom_patches.h"
+#include "port/save_sync.h"
 #include "port/sim_config_prj.h"
 #include "port/save_slots.h"
 #include "port/shiny_hunt.h"
@@ -82,6 +83,8 @@ void NitroMain(void)
     SIM_Config_prj_init();
     // Point the save file at the slot in use before the save is loaded
     SaveSlots_Init();
+    // Saves kept in step with other devices through a shared folder
+    SaveSync_Init();
     // Android has no window icon (the launcher icon comes from the APK)
     #if defined(SDK_BUILD_LINUX) && !defined(SDK_BUILD_ANDROID)
     SetPokeplatinumAppIcon();
@@ -184,6 +187,7 @@ void NitroMain(void)
 
 #ifdef SDK_PORT
         FrameRate_Update();
+        SaveSync_Update();
 #endif
 
         if (CommSys_Update()) {

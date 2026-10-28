@@ -31,8 +31,9 @@
 
 static u64 sLastSaveMs = 0;
 static BOOL sSaving = FALSE;
-static char sNotice[64];
+static char sNotice[128];
 static u64 sNoticeStartMs = 0;
+static u64 sNoticeShowMs = NOTICE_SHOW_MS;
 
 void Autosave_NoteSaved(void)
 {
@@ -178,8 +179,14 @@ void SIM_Prj_OnLifecycleEvent(int event)
 
 void Autosave_ShowNotice(const char *text)
 {
+    Autosave_ShowNoticeFor(text, NOTICE_SHOW_MS);
+}
+
+void Autosave_ShowNoticeFor(const char *text, int ms)
+{
     snprintf(sNotice, sizeof(sNotice), "%s", text);
     sNoticeStartMs = SDL_GetTicks64();
+    sNoticeShowMs = ms;
 }
 
 const char *Autosave_GetNotice(float *alpha)
@@ -189,11 +196,11 @@ const char *Autosave_GetNotice(float *alpha)
     }
 
     u64 elapsed = SDL_GetTicks64() - sNoticeStartMs;
-    if (elapsed >= NOTICE_SHOW_MS + NOTICE_FADE_MS) {
+    if (elapsed >= sNoticeShowMs + NOTICE_FADE_MS) {
         sNotice[0] = '\0';
         return NULL;
     }
 
-    *alpha = elapsed <= NOTICE_SHOW_MS ? 1.0f : 1.0f - (float)(elapsed - NOTICE_SHOW_MS) / NOTICE_FADE_MS;
+    *alpha = elapsed <= sNoticeShowMs ? 1.0f : 1.0f - (float)(elapsed - sNoticeShowMs) / NOTICE_FADE_MS;
     return sNotice;
 }

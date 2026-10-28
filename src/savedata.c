@@ -17,6 +17,7 @@
 
 #ifdef SDK_PORT
 #include "port/save_slots.h"
+#include "port/save_sync.h"
 #endif
 
 static void SaveTable_Clear(SaveDataBody *body, const SavePageInfo *pageInfo);
@@ -48,6 +49,10 @@ SaveData *SaveData_Init(void)
 {
     SaveData *saveData = Heap_Alloc(HEAP_ID_SAVE, sizeof(SaveData));
     SaveData_Reload(saveData);
+    // Saves made on another device since (save sync): the slot in use again if it was one
+    if (SaveSync_AtStartup()) {
+        SaveData_Reload(saveData);
+    }
     SaveSlots_OnLoaded(saveData);
     return saveData;
 }

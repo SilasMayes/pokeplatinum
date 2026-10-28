@@ -67,6 +67,9 @@ void Nuzlocke_OnBattleStart(u32 battleType, struct Party *wildParty);
 // "send fainted Pokemon to the PC" takes them out of playerParty into the PC
 void Nuzlocke_OnBattleEnd(u32 battleType, int resultMask, struct Party *playerParty, struct Party *wildParty);
 
+// Its file for the slot was replaced (save sync): read again when next needed
+void Nuzlocke_ForgetLoaded(void);
+
 #ifdef __cplusplus
 }
 #endif

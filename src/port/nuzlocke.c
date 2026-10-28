@@ -91,6 +91,12 @@ static void Load(int slot)
     fclose(file);
 }
 
+// The slot's file was replaced (save sync): read it again when next needed
+void Nuzlocke_ForgetLoaded(void)
+{
+    sLoadedSlot = -1;
+}
+
 static void EnsureLoaded(void)
 {
     if (SaveSlots_Current() != sLoadedSlot) {

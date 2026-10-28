@@ -38,6 +38,7 @@ FieldSystem *Autosave_GetFieldSystem(void);
 // On-screen notice ("Autosaved"): text and opacity 0..1, or NULL when none is showing
 const char *Autosave_GetNotice(float *alpha);
 void Autosave_ShowNotice(const char *text);
+void Autosave_ShowNoticeFor(const char *text, int ms);
 
 #ifdef __cplusplus
 }

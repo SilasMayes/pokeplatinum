@@ -63,6 +63,14 @@ int SaveSlots_TakeRequestedSwitch(void); // -1 when nothing is pending
 BOOL SaveSlots_Import(int slot, const char *sourcePath, char *err, int errSize);
 BOOL SaveSlots_Export(int slot, const char *destPath, char *err, int errSize);
 
+// Replaces a slot's save with a 512 KB image (checked first; the old one is kept as
+// .bak), whether or not its game is running: the caller makes sure it isn't (save sync,
+// before the save is loaded or at the main menu, where the slot is then reloaded)
+BOOL SaveSlots_ReplaceImage(int slot, const u8 *image, char *err, int errSize);
+
+// Sets a slot's summary (a save that came from elsewhere, until it is loaded here)
+void SaveSlots_WriteInfo(int slot, const SaveSlotInfo *info);
+
 // TRUE while the slot's save is loaded and in use by a running game (it can't be
 // replaced by an import until the player is back at the main menu)
 BOOL SaveSlots_IsInUse(int slot);

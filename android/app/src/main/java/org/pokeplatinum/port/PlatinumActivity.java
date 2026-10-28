@@ -1,10 +1,15 @@
 package org.pokeplatinum.port;
 
+import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
 import android.provider.DocumentsContract;
+import android.provider.Settings;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Display;
@@ -32,6 +37,8 @@ public class PlatinumActivity extends SDLActivity {
     private static final int REQUEST_CREATE_DOCUMENT = 0x504E;
     private static final int REQUEST_OPEN_FOLDER = 0x504F;
     private static final int REQUEST_IMPORT_FOLDER = 0x5050;
+    private static final int REQUEST_FOLDER_PATH = 0x5051;
+    private static final int REQUEST_STORAGE = 0x5052;
 
     /** File waiting to be written to the document the player is choosing (export). */
     private String pendingExportSource;
@@ -415,6 +422,93 @@ public class PlatinumActivity extends SDLActivity {
         }, "FolderImport").start();
     }
 
+    /**
+     * Called from native code (sim_files.cpp): let the player pick a folder to use where it
+     * is, e.g. one Syncthing keeps in step with a computer (save sync). Its path is reported
+     * through nativeDocumentPicked: null if cancelled or not on the device's storage. Reading
+     * and writing it takes "All files access" (hasAllFilesAccess).
+     */
+    @SuppressWarnings("unused")
+    public void pickFolderPath() {
+        runOnUiThread(() -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            try {
+                startActivityForResult(intent, REQUEST_FOLDER_PATH);
+            } catch (ActivityNotFoundException e) {
+                Log.e(TAG, "No folder picker available", e);
+                nativeDocumentPicked(null);
+            }
+        });
+    }
+
+    private void onFolderPathPicked(int resultCode, Intent data) {
+        Uri tree = (resultCode == RESULT_OK && data != null) ? data.getData() : null;
+        String path = treeToPath(tree);
+        if (tree != null && path == null) {
+            Log.w(TAG, "Not a folder on the device's storage: " + tree);
+        }
+        nativeDocumentPicked(path);
+    }
+
+    /** The file path of a folder the system picker chose on the device's storage, else null. */
+    private static String treeToPath(Uri tree) {
+        if (tree == null || !"com.android.externalstorage.documents".equals(tree.getAuthority())) {
+            return null;
+        }
+        String id;
+        try {
+            id = DocumentsContract.getTreeDocumentId(tree);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        int colon = id.indexOf(':');
+        String volume = colon >= 0 ? id.substring(0, colon) : id;
+        String relative = colon >= 0 ? id.substring(colon + 1) : "";
+        String base;
+        if ("primary".equalsIgnoreCase(volume)) {
+            base = Environment.getExternalStorageDirectory().getAbsolutePath();
+        } else if ("home".equalsIgnoreCase(volume)) {
+            base = Environment.getExternalStorageDirectory().getAbsolutePath() + "/Documents";
+        } else {
+            base = "/storage/" + volume; // an SD card or USB drive
+        }
+        return relative.isEmpty() ? base : base + "/" + relative;
+    }
+
+    /** Called from native code: whether files anywhere on the device's storage can be used. */
+    @SuppressWarnings("unused")
+    public boolean hasAllFilesAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        }
+        return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Called from native code: asks for that. On Android 11 and later that's a settings
+     * screen ("Allow access to manage all files") the player turns on and comes back from.
+     */
+    @SuppressWarnings("unused")
+    public void requestAllFilesAccess() {
+        runOnUiThread(() -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:" + getPackageName())));
+                } catch (ActivityNotFoundException e) {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                    } catch (ActivityNotFoundException e2) {
+                        Log.e(TAG, "No all-files-access settings screen", e2);
+                    }
+                }
+            } else {
+                requestPermissions(new String[] { Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE }, REQUEST_STORAGE);
+            }
+        });
+    }
+
     private static void deleteRecursively(File file) {
         File[] children = file.listFiles();
         if (children != null) {
@@ -521,6 +615,10 @@ public class PlatinumActivity extends SDLActivity {
         }
         if (requestCode == REQUEST_IMPORT_FOLDER) {
             onImportFolderPicked(resultCode, data);
+            return;
+        }
+        if (requestCode == REQUEST_FOLDER_PATH) {
+            onFolderPathPicked(resultCode, data);
             return;
         }
         if (requestCode == REQUEST_CREATE_DOCUMENT) {

@@ -20,6 +20,7 @@
 #include "port/gba_slot.h"
 #include "port/nuzlocke.h"
 #include "port/save_slots.h"
+#include "port/save_sync.h"
 #include "port/sim_config_prj.h"
 #include "port/soft_reset.h"
 
@@ -202,6 +203,119 @@ void ExportSlot(int slot)
     SIM_Files_SaveCopy("Export save", tempPath, name, OnExportDone, nullptr);
 }
 
+// --- Save sync -------------------------------------------------------------------------------
+
+// A word on the slot's sync for its card, or nullptr
+const char *SyncStateText(int slot)
+{
+    SaveSyncSlot sync;
+    SaveSync_GetSlot(slot, &sync);
+    switch (sync.state) {
+    case SAVE_SYNC_IN_STEP:
+        return "Synced";
+    case SAVE_SYNC_SENDING:
+        return "Sending to the sync folder";
+    case SAVE_SYNC_NEWER_THERE:
+        return "A newer save is waiting: it loads on the main menu";
+    case SAVE_SYNC_ARRIVING:
+        return "A newer save is arriving";
+    case SAVE_SYNC_CONFLICT:
+        return "Saved on two devices: choose one below";
+    case SAVE_SYNC_ERROR:
+        return "Couldn't sync";
+    default:
+        return nullptr;
+    }
+}
+
+// The other device's save of the slot, when it differs: which to keep
+void DrawSlotSync(int slot, bool atMenu)
+{
+    SaveSyncSlot sync;
+    SaveSync_GetSlot(slot, &sync);
+    if (sync.state != SAVE_SYNC_CONFLICT && sync.state != SAVE_SYNC_NEWER_THERE) {
+        return;
+    }
+    char text[256];
+    if (sync.thereName[0] != '\0') {
+        snprintf(text, sizeof(text), "%s saved this slot %s: %s, %d:%02d played, %d badge%s.", sync.thereDevice,
+            sync.thereSavedAt[0] != '\0' ? sync.thereSavedAt : "too", sync.thereName, sync.thereHours,
+            sync.thereMinutes, sync.thereBadges, sync.thereBadges == 1 ? "" : "s");
+    } else {
+        snprintf(text, sizeof(text), "%s saved this slot too.", sync.thereDevice);
+    }
+    Note(text);
+    char label[96];
+    snprintf(label, sizeof(label), "Use %s's save", sync.thereDevice);
+    if (Button(label, atMenu ? "Loads it here. This device's is kept as .bak."
+                             : "Go back to the main menu first (Games > Reset to the title screen).",
+            sync.state == SAVE_SYNC_CONFLICT, atMenu)) {
+        char err[160] = "";
+        if (SaveSync_Resolve(slot, FALSE, err, sizeof(err))) {
+            SetSavesStatus(slot == SaveSlots_Current() ? "It loads when you close the settings." : "Loaded.", false);
+        } else {
+            SetSavesStatus(err, true);
+        }
+    }
+    if (sync.state == SAVE_SYNC_CONFLICT && Button("Keep this device's save", "Sends it to the folder, and the other "
+                                                   "device loads it on its main menu.")) {
+        char err[160] = "";
+        if (SaveSync_Resolve(slot, TRUE, err, sizeof(err))) {
+            SetSavesStatus("Kept this one. The other device gets it next.", false);
+        } else {
+            SetSavesStatus(err, true);
+        }
+    }
+}
+
+void OnSyncFolderPicked(const char *path, void *)
+{
+    if (path == nullptr) {
+        return;
+    }
+    SaveSync_SetFolder(path);
+    SaveSync_CheckNow();
+}
+
+void DrawSync()
+{
+    Section("Sync with your other devices");
+    Note("Play the same game on the Thor and a computer: the saves go through a folder that Syncthing, a network "
+         "share or a cloud drive keeps the same on both. After you save, this device copies the save there; the "
+         "other one loads it on its main menu.");
+    const char *folder = SaveSync_Folder();
+    const bool busy = SIM_Files_IsBusy() != FALSE;
+    if (folder[0] == '\0') {
+        if (Button("Choose the sync folder", "The same folder on every device: Syncthing's, a network share...",
+                true, !busy)) {
+            SIM_Files_PickFolderPath("Choose the sync folder", OnSyncFolderPicked, nullptr);
+        }
+    } else {
+        bool on = SaveSync_Enabled() != FALSE;
+        if (Toggle("Sync saves", nullptr, &on)) {
+            SaveSync_SetEnabled(on ? TRUE : FALSE);
+            SaveSync_CheckNow();
+        }
+        char gameFolder[1200];
+        SaveSync_GameFolder(gameFolder, sizeof(gameFolder));
+        std::string where = std::string("This game's saves go in ") + gameFolder;
+        Note(where.c_str());
+        if (Button("Choose another folder", nullptr, false, !busy)) {
+            SIM_Files_PickFolderPath("Choose the sync folder", OnSyncFolderPicked, nullptr);
+        }
+    }
+    if (!SIM_Files_HasStorageAccess()) {
+        if (Button("Allow access to the folder", "Android asks for \"All files access\": turn it on for this app, "
+                                                 "then come back.", folder[0] != '\0')) {
+            SIM_Files_RequestStorageAccess();
+        }
+    }
+    Status(SaveSync_LastEvent());
+    char device[96];
+    snprintf(device, sizeof(device), "This device shows as \"%s\".", SIM_DeviceName());
+    Note(device);
+}
+
 void DrawSaves()
 {
     SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
@@ -227,6 +341,11 @@ void DrawSaves()
         } else {
             snprintf(title, sizeof(title), "Slot %d: saved game", slot + 1);
             snprintf(subtitle, sizeof(subtitle), "%sDetails show once it has been loaded", slot == current ? "In use. " : "");
+        }
+        const char *sync = SyncStateText(slot);
+        if (sync != nullptr) {
+            const size_t used = strlen(subtitle);
+            snprintf(subtitle + used, sizeof(subtitle) - used, "%s%s", used > 0 ? ". " : "", sync);
         }
         ImGui::PushID(slot);
         if (Card(title, subtitle, slot == sSelectedSlot)) {
@@ -265,7 +384,10 @@ void DrawSaves()
         sSavesStatus.clear();
         ExportSlot(slot);
     }
+    DrawSlotSync(slot, atMenu);
     Status(sSavesStatus.c_str(), sSavesError);
+
+    DrawSync();
 
     Section("Autosave");
     ConfigToggle("Save automatically", "While exploring, every few minutes.", &config->autosave);

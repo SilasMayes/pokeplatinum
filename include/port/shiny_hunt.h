@@ -58,6 +58,9 @@ void ShinyHunt_OnBattleStart(u32 battleType, struct Party *wildParty);
 void ShinyHunt_OnEggHatched(struct Pokemon *mon);
 void ShinyHunt_OnSoftReset(void);
 
+// Its file for the slot was replaced (save sync): read again when next needed
+void ShinyHunt_ForgetLoaded(void);
+
 #ifdef __cplusplus
 }
 #endif

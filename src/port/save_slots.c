@@ -9,6 +9,7 @@
 #include <time.h>
 
 #include "port/autosave.h"
+#include "port/save_sync.h"
 #include "charcode_convert.h"
 #include "port/sim_config_prj.h"
 
@@ -217,6 +218,7 @@ void SaveSlots_Select(SaveData *saveData, int slot)
     SaveSlots_FilePath(slot, path, sizeof(path));
     SIM_Backup_SetPath(path);
 
+    SaveSync_BeforeLoad(slot);
     SaveData_Reload(saveData);
     SaveSlots_OnLoaded(saveData);
 }
@@ -225,6 +227,7 @@ void SaveSlots_OnSaved(SaveData *saveData)
 {
     WriteSummary(sCurrentSlot, saveData, TRUE);
     Autosave_NoteSaved();
+    SaveSync_OnSaved(sCurrentSlot);
 }
 
 void SaveSlots_OnLoaded(SaveData *saveData)
@@ -299,6 +302,42 @@ static BOOL WriteWholeFile(const char *path, const u8 *data, u32 size)
     return TRUE;
 }
 
+BOOL SaveSlots_ReplaceImage(int slot, const u8 *image, char *err, int errSize)
+{
+    slot = ClampSlot(slot);
+    if (!SaveData_IsValidBackupImage((u8 *)image, SAVE_SLOT_IMAGE_SIZE)) {
+        SetError(err, errSize, "This doesn't look like a Pokemon Platinum save.");
+        return FALSE;
+    }
+
+    char path[SIM_BACKUP_PATH_MAX];
+    SaveSlots_FilePath(slot, path, sizeof(path));
+
+    // Keep whatever was in the slot
+    if (SaveSlots_HasData(slot)) {
+        char backupPath[SIM_BACKUP_PATH_MAX + 8];
+        snprintf(backupPath, sizeof(backupPath), "%s.bak", path);
+        remove(backupPath);
+        rename(path, backupPath);
+    }
+
+    if (!WriteWholeFile(path, image, SAVE_SLOT_IMAGE_SIZE)) {
+        SetError(err, errSize, "Could not write the save file.");
+        return FALSE;
+    }
+
+    // The old summary belongs to the replaced save; it is rebuilt when the slot loads
+    char infoPath[64];
+    InfoPath(slot, infoPath, sizeof(infoPath));
+    remove(infoPath);
+
+    // Replacing the slot shown on the main menu: reload it there
+    if (slot == sCurrentSlot) {
+        SaveSlots_RequestSwitch(slot);
+    }
+    return TRUE;
+}
+
 BOOL SaveSlots_Import(int slot, const char *sourcePath, char *err, int errSize)
 {
     slot = ClampSlot(slot);
@@ -330,40 +369,27 @@ BOOL SaveSlots_Import(int slot, const char *sourcePath, char *err, int errSize)
         return FALSE;
     }
 
-    if (!SaveData_IsValidBackupImage(image, SAVE_SLOT_IMAGE_SIZE)) {
-        free(image);
-        SetError(err, errSize, "This doesn't look like a Pokemon Platinum save.");
-        return FALSE;
-    }
-
-    char path[SIM_BACKUP_PATH_MAX];
-    SaveSlots_FilePath(slot, path, sizeof(path));
-
-    // Keep whatever was in the slot
-    if (SaveSlots_HasData(slot)) {
-        char backupPath[SIM_BACKUP_PATH_MAX + 8];
-        snprintf(backupPath, sizeof(backupPath), "%s.bak", path);
-        remove(backupPath);
-        rename(path, backupPath);
-    }
-
-    BOOL ok = WriteWholeFile(path, image, SAVE_SLOT_IMAGE_SIZE);
+    BOOL ok = SaveSlots_ReplaceImage(slot, image, err, errSize);
     free(image);
-    if (!ok) {
-        SetError(err, errSize, "Could not write the save file.");
-        return FALSE;
-    }
+    return ok;
+}
 
-    // The old summary belongs to the replaced save; it is rebuilt when the slot loads
-    char infoPath[64];
-    InfoPath(slot, infoPath, sizeof(infoPath));
-    remove(infoPath);
-
-    // Importing into the slot shown on the main menu: reload it there
-    if (slot == sCurrentSlot) {
-        SaveSlots_RequestSwitch(slot);
+void SaveSlots_WriteInfo(int slot, const SaveSlotInfo *info)
+{
+    char path[64];
+    InfoPath(slot, path, sizeof(path));
+    FILE *file = fopen(path, "w");
+    if (file == NULL) {
+        return;
     }
-    return TRUE;
+    fprintf(file, "name=%s\n", info->name);
+    fprintf(file, "hours=%d\n", info->hours);
+    fprintf(file, "minutes=%d\n", info->minutes);
+    fprintf(file, "badges=%d\n", info->badges);
+    fprintf(file, "pokedex=%d\n", info->pokedexObtained ? 1 : 0);
+    fprintf(file, "seen=%d\n", info->seen);
+    fprintf(file, "saved=%s\n", info->savedAt);
+    fclose(file);
 }
 
 BOOL SaveSlots_Export(int slot, const char *destPath, char *err, int errSize)
