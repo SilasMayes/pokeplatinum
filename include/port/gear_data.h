@@ -156,6 +156,7 @@ struct BattleSystem;
 
 // The battle code reports its battle system while it exists (port hook in battle_main.c)
 void Gear_SetBattleSystem(struct BattleSystem *battleSys);
+struct BattleSystem *Gear_ActiveBattleSystem(void); // the battle running, or NULL
 // Fills out the current battle; returns FALSE (and out->active FALSE) outside battles
 BOOL Gear_GetBattle(GearBattle *out);
 

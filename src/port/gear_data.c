@@ -751,6 +751,11 @@ void Gear_SetBattleSystem(struct BattleSystem *battleSys)
     sBattleSys = battleSys;
 }
 
+struct BattleSystem *Gear_ActiveBattleSystem(void)
+{
+    return sBattleSys;
+}
+
 static void AddBattlePartyMons(GearBattle *out, Party *party)
 {
     if (party == NULL) {
