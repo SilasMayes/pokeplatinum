@@ -26,6 +26,8 @@
 #include "port/cheats.h"
 #include "port/gear_data.h"
 #include "port/gba_slot.h"
+#include "port/gear_berries.h"
+#include "port/gear_daycare.h"
 #include "port/gear_pc.h"
 #include "port/gear_dex.h"
 #include "port/gear_sprites.h"
@@ -762,6 +764,8 @@ void DrawMonDetail(const GearMon &mon) {
   ImGui::Text("Friendship: %d", mon.friendship);
 }
 
+void DrawDaycare(); // below
+
 void DrawParty(const SIM_CompanionFrame *frame) {
   if (sPartyCount == 0) {
     ImGui::TextDisabled("No Pokemon yet.");
@@ -784,12 +788,17 @@ void DrawParty(const SIM_CompanionFrame *frame) {
     }
     DrawMonCard(i, ImVec2(cardWidth, cardHeight));
   }
+  DrawDaycare();
 }
 
 // --- area --------------------------------------------------------------------------------
 
 bool DexSwitch();
 void DrawDex();
+void DrawBerries();
+bool sBerriesOpen = false; // the Area tab shows the berry patches
+int Segments(const char *id, const char *const *labels, int count, int value, float height = 34.0f);
+int sSegmentTapped = -1; // the segment Segments() last saw tapped (even the one already chosen), else -1
 void OpenSpecies(u16 species);
 void PokeBall(ImDrawList *draw, ImVec2 center, float radius);
 
@@ -965,8 +974,12 @@ void DrawArea() {
     ImGui::TextDisabled("Start or continue a game to see this area.");
     return;
   }
-  if (Discovery() != GEAR_DISCOVERY_VANILLA && DexSwitch()) {
+  if (DexSwitch()) {
     DrawDex();
+    return;
+  }
+  if (sBerriesOpen) {
+    DrawBerries();
     return;
   }
 
@@ -1120,35 +1133,42 @@ void OpenSpecies(u16 species) {
   ImGui::SetScrollY(0.0f);
 }
 
-// This area | Pokédex; true when the Pokédex is open
+// This area | Pokédex | Berries (no Pokédex when the Gear reveals only what the game does);
+// true when the Pokédex is open
 bool DexSwitch() {
-  const char *labels[2] = {"This area", "Pok\xC3\xA9" "dex"};
-  const float width = ImGui::GetContentRegionAvail().x;
-  const float gap = S(6.0f);
-  const float w = (width - gap) * 0.5f;
-  const float h = S(34.0f);
-  ImDrawList *draw = ImGui::GetWindowDrawList();
-  for (int i = 0; i < 2; i++) {
-    if (i > 0) {
-      ImGui::SameLine(0.0f, gap);
+  const bool dex = Discovery() != GEAR_DISCOVERY_VANILLA;
+  const char *labels[3] = {"This area", "Pok\xC3\xA9" "dex", "Berries"};
+  const int views[3] = {0, 1, 2};
+  const char *shown[3];
+  int shownViews[3];
+  int count = 0;
+  for (int i = 0; i < 3; i++) {
+    if (i == 1 && !dex) {
+      continue;
     }
-    ImVec2 pos = ImGui::GetCursorScreenPos();
-    ImGui::PushID(i);
-    if (Tap("areaview", ImVec2(w, h))) {
-      if (i == 1 && sDexOpen && sDexSpecies != 0) {
-        sDexSpecies = 0; // Pokédex again: back to the list
-        sDexBackCount = 0;
-      }
-      sDexOpen = i == 1;
-    }
-    ImGui::PopID();
-    const bool selected = (i == 1) == sDexOpen;
-    draw->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h), selected ? kAccent : kPanel, S(12.0f));
-    ImVec2 size = TextSize(sBold, S(16.0f), labels[i]);
-    TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + (w - size.x) * 0.5f, pos.y + (h - size.y) * 0.5f),
-           selected ? IM_COL32(16, 24, 34, 255) : kText, labels[i]);
+    shown[count] = labels[i];
+    shownViews[count] = views[i];
+    count++;
   }
-  ImGui::Dummy(ImVec2(0, S(2.0f)));
+  if (!dex && sDexOpen) {
+    sDexOpen = false;
+  }
+  const int current = sBerriesOpen ? 2 : (sDexOpen ? 1 : 0);
+  int index = 0;
+  for (int i = 0; i < count; i++) {
+    if (shownViews[i] == current) {
+      index = i;
+    }
+  }
+  const int chosen = shownViews[Segments("areaview", shown, count, index)];
+  if (chosen != current || (sSegmentTapped >= 0 && chosen == 1)) {
+    if (chosen == 1 && sDexOpen && sDexSpecies != 0) {
+      sDexSpecies = 0; // Pokédex again: back to the list
+      sDexBackCount = 0;
+    }
+    sDexOpen = chosen == 1;
+    sBerriesOpen = chosen == 2;
+  }
   return sDexOpen;
 }
 
@@ -1262,6 +1282,250 @@ void DexHeading(const char *text) {
   ImGui::PushFont(sBold, S(16.0f));
   ImGui::TextColored(ImColor(kAccent), "%s", text);
   ImGui::PopFont();
+}
+
+// --- berries (in the Area tab) ------------------------------------------------------------
+
+GearBerryPatch sBerries[128];
+int sBerryCount = 0;
+int sBerriesReadAt = -1000;
+
+// "3 h 20 min"
+void Duration(int minutes, char *out, size_t size) {
+  if (minutes < 60) {
+    snprintf(out, size, "%d min", minutes);
+  } else if (minutes < 48 * 60) {
+    snprintf(out, size, "%d h %02d min", minutes / 60, minutes % 60);
+  } else {
+    snprintf(out, size, "%d days %d h", minutes / (24 * 60), (minutes / 60) % 24);
+  }
+}
+
+// The game clock's time that many minutes from now
+void ClockAfter(int minutes, char *out, size_t size) {
+  const time_t when = time(nullptr) + (time_t)SIM_GetClockOffset() + (time_t)minutes * 60;
+  const struct tm *local = localtime(&when);
+  if (local == nullptr) {
+    out[0] = '\0';
+    return;
+  }
+  static const char *const kDays[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  if (minutes >= 20 * 60) {
+    snprintf(out, size, "%s %d:%02d", kDays[local->tm_wday], local->tm_hour, local->tm_min);
+  } else {
+    snprintf(out, size, "%d:%02d", local->tm_hour, local->tm_min);
+  }
+}
+
+void DrawBerries() {
+  const int frame = ImGui::GetFrameCount();
+  if (frame - sBerriesReadAt >= 120) {
+    sBerryCount = Gear_GetBerryPatches(sBerries, 128);
+    sBerriesReadAt = frame;
+  }
+  if (sBerryCount == 0) {
+    ImGui::TextDisabled("No berries growing. Plant berries in soft soil (Plant, from the Berry Pouch) to see them here.");
+    return;
+  }
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const float width = ImGui::GetContentRegionAvail().x;
+  int growing = 0;
+  for (int i = 0; i < sBerryCount; i++) {
+    growing += sBerries[i].growing ? 1 : 0;
+  }
+  DexHeading("Your berries");
+  if (growing == 0) {
+    ImGui::TextDisabled("None planted. Plant berries in soft soil (Plant, from the Berry Pouch) to see them grow here.");
+  } else {
+    ImGui::TextColored(ImColor(kTextDim), "The soonest ready first. Times go by the game's clock.");
+  }
+  static const char *const kStages[] = {"", "Planted", "Sprouted", "Growing", "Blooming", "Ripe"};
+  const float rowHeight = S(62.0f);
+  bool treesHeading = false;
+  for (int i = 0; i < sBerryCount; i++) {
+    const GearBerryPatch &patch = sBerries[i];
+    if (!patch.growing) {
+      // The game's own trees: berries to pick, no timers
+      if (!treesHeading) {
+        DexHeading("Berries to pick around Sinnoh");
+        ImGui::TextColored(ImColor(kTextDim), "Trees that had berries from the start; they keep until picked.");
+        treesHeading = true;
+      }
+      ImVec2 pos = ImGui::GetCursorScreenPos();
+      const float h = S(30.0f);
+      draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + h), kPanel, S(8.0f));
+      char text[64];
+      snprintf(text, sizeof(text), "%s x%d", Gear_ItemName(patch.berryItem), patch.yield);
+      TextAt(draw, sBold, S(14.0f), ImVec2(pos.x + S(12.0f), pos.y + S(6.0f)), kText, text);
+      const char *where = patch.mapHeaderID != 0 ? Gear_LocationName(patch.mapHeaderID) : "";
+      ImVec2 whereSize = TextSize(sRegular, S(14.0f), where);
+      TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + width - whereSize.x - S(12.0f), pos.y + S(6.0f)), kTextDim, where);
+      ImGui::Dummy(ImVec2(width, h));
+      continue;
+    }
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), kPanel, S(10.0f));
+    const bool ripe = patch.minutesToRipe == 0;
+    char title[64];
+    snprintf(title, sizeof(title), "%s", Gear_ItemName(patch.berryItem));
+    TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + S(12.0f), pos.y + S(6.0f)), kText, title);
+    const char *where = patch.mapHeaderID != 0 ? Gear_LocationName(patch.mapHeaderID) : "";
+    ImVec2 whereSize = TextSize(sRegular, S(14.0f), where);
+    TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + width - whereSize.x - S(12.0f), pos.y + S(8.0f)), kTextDim, where);
+
+    char line[128];
+    char a[32], b[32];
+    if (ripe) {
+      Duration(patch.minutesToNextStage, a, sizeof(a));
+      snprintf(line, sizeof(line), "Ripe: %d berr%s to pick. They fall in %s.", patch.yield, patch.yield == 1 ? "y" : "ies", a);
+    } else {
+      Duration(patch.minutesToRipe, a, sizeof(a));
+      ClockAfter(patch.minutesToRipe, b, sizeof(b));
+      snprintf(line, sizeof(line), "%s. Ripe in %s (%s), about %d berries.", kStages[patch.stage < 6 ? patch.stage : 0], a, b,
+               patch.yield);
+    }
+    TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + S(12.0f), pos.y + S(26.0f)), ripe ? kGood : kText, line);
+
+    // The soil: watering keeps the yield up
+    const char *soil = patch.moisture == 0 ? "Soil dry: water it!" : (patch.moisture < 50 ? "Soil drying" : "Soil moist");
+    static const char *const kMulch[] = {"", ", Growth Mulch", ", Damp Mulch", ", Stable Mulch", ", Gooey Mulch"};
+    snprintf(line, sizeof(line), "%s%s", ripe ? "" : soil, patch.mulch > 0 && patch.mulch < 5 ? kMulch[patch.mulch] : "");
+    if (line[0] == ',') {
+      memmove(line, line + 2, strlen(line + 2) + 1);
+    }
+    TextAt(draw, sRegular, S(13.0f), ImVec2(pos.x + S(12.0f), pos.y + S(43.0f)),
+           !ripe && patch.moisture == 0 ? kBad : kTextDim, line);
+    ImGui::Dummy(ImVec2(width, rowHeight));
+  }
+}
+
+// --- Day Care (in the Party tab) -----------------------------------------------------------
+
+GearDaycare sDaycare;
+int sDaycareReadAt = -1000;
+
+const char *GenderWord(u8 gender) {
+  return gender == 0 ? "Male" : (gender == 1 ? "Female" : "Genderless");
+}
+
+void DrawDaycare() {
+  const int frame = ImGui::GetFrameCount();
+  if (frame - sDaycareReadAt >= 30) {
+    Gear_GetDaycare(&sDaycare);
+    sDaycareReadAt = frame;
+  }
+  const GearDaycare &d = sDaycare;
+  if (d.count == 0 && d.partyEggCount == 0) {
+    return;
+  }
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const float width = ImGui::GetContentRegionAvail().x;
+  const bool everything = Discovery() == GEAR_DISCOVERY_EVERYTHING;
+
+  if (d.partyEggCount > 0) {
+    DexHeading("Eggs");
+    for (int i = 0; i < d.partyEggCount; i++) {
+      char steps[24];
+      char line[96];
+      snprintf(line, sizeof(line), "%s: about %s steps to hatch", everything ? Gear_SpeciesName(d.partyEggs[i].species) : "Egg",
+               Thousands((u32)d.partyEggs[i].steps, steps, sizeof(steps)));
+      ImGui::TextUnformatted(line);
+    }
+    if (d.fasterHatching) {
+      ImGui::TextColored(ImColor(kTextDim), "Flame Body or Magma Armor in the party: twice as fast.");
+    }
+  }
+
+  if (d.count == 0) {
+    return;
+  }
+  DexHeading("Day Care");
+  const float rowHeight = S(46.0f);
+  const float iconSize = PixelSize(S(40.0f), 32.0f);
+  for (int i = 0; i < d.count; i++) {
+    const GearDaycareMon &mon = d.mons[i];
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), kPanel, S(10.0f));
+    DrawIcon(draw, ImVec2(pos.x + S(4.0f), pos.y + (rowHeight - iconSize) * 0.5f - S(3.0f)), iconSize, mon.species, mon.form,
+             false, 0.4f);
+    char title[64];
+    snprintf(title, sizeof(title), "%s  Lv %u", Gear_SpeciesName(mon.species), (unsigned)mon.level);
+    if (mon.levelsGained > 0) {
+      snprintf(title + strlen(title), sizeof(title) - strlen(title), " (now %u)", (unsigned)(mon.level + mon.levelsGained));
+    }
+    TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + S(50.0f), pos.y + S(5.0f)), kText, title);
+    char sub[96];
+    snprintf(sub, sizeof(sub), "%s, %s%s", GenderWord(mon.gender), mon.item ? "holding " : "no item",
+             mon.item ? Gear_ItemName(mon.item) : "");
+    TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + S(50.0f), pos.y + S(25.0f)), kTextDim, sub);
+    ImGui::Dummy(ImVec2(width, rowHeight));
+    if (everything) {
+      ImGui::TextColored(ImColor(kTextDim), "IVs %u/%u/%u/%u/%u/%u (HP/Atk/Def/SpA/SpD/Spe), %s", mon.ivs[0], mon.ivs[1],
+                         mon.ivs[2], mon.ivs[4], mon.ivs[5], mon.ivs[3], Gear_NatureName(mon.nature));
+    }
+  }
+
+  if (d.count < 2) {
+    ImGui::TextColored(ImColor(kTextDim), "Leave a second Pokemon to breed.");
+    return;
+  }
+
+  // How they get along, as the Day Care Man says it
+  const char *along = d.compatibility >= 70 ? "The two seem to get along very well."
+                      : d.compatibility >= 50 ? "The two seem to get along."
+                      : d.compatibility >= 20 ? "The two don't seem to like each other much."
+                                              : "The two prefer to play with other Pokemon.";
+  ImGui::Dummy(ImVec2(0, S(4.0f)));
+  ImGui::PushFont(sBold, S(15.0f));
+  ImGui::TextWrapped("%s", along);
+  ImGui::PopFont();
+  if (d.compatibility == 0) {
+    ImGui::TextColored(ImColor(kTextDim), "No eggs from these two.");
+    return;
+  }
+  ImGui::TextWrapped("%d%% chance of an egg every 256 steps; the next check in %d step%s.", d.compatibility,
+                     d.stepsToNextCheck, d.stepsToNextCheck == 1 ? "" : "s");
+  if (d.eggWaiting) {
+    ImGui::TextColored(ImColor(kGood), "An egg is waiting: talk to the Day Care Man.");
+  }
+
+  // The egg
+  ImGui::Dummy(ImVec2(0, S(4.0f)));
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), kPanel, S(10.0f));
+  DrawIcon(draw, ImVec2(pos.x + S(4.0f), pos.y + (rowHeight - iconSize) * 0.5f - S(3.0f)), iconSize, d.eggSpecies, 0, false);
+  char eggTitle[64];
+  snprintf(eggTitle, sizeof(eggTitle), "Egg: %s", Gear_SpeciesName(d.eggSpecies));
+  TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + S(50.0f), pos.y + S(5.0f)), kText, eggTitle);
+  char from[64];
+  snprintf(from, sizeof(from), "Its species from %s", Gear_SpeciesName(d.mons[d.motherSlot].species));
+  TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + S(50.0f), pos.y + S(25.0f)), kTextDim, from);
+  ImGui::Dummy(ImVec2(width, rowHeight));
+
+  if (d.everstoneSlot >= 0) {
+    ImGui::TextWrapped("Nature: %s half the time (%s holds an Everstone).", Gear_NatureName(d.mons[d.everstoneSlot].nature),
+                       Gear_SpeciesName(d.mons[d.everstoneSlot].species));
+  } else {
+    ImGui::TextColored(ImColor(kTextDim), "Nature: random (an Everstone on the mother or Ditto passes hers on half the time).");
+  }
+  ImGui::TextWrapped("IVs: 3 of its 6 are copied, each from one parent or the other; the rest are random.");
+  if (d.differentLanguages) {
+    ImGui::TextColored(ImColor(kWarn), "Parents from games in different languages: shiny eggs are about 5 times as likely.");
+  }
+  if (d.inheritedCount > 0) {
+    ImGui::Dummy(ImVec2(0, S(2.0f)));
+    ImGui::TextColored(ImColor(kAccent), "Moves it hatches with");
+    static const char *const kHow[] = {"egg move", "TM", "both parents", "Light Ball"};
+    for (int i = 0; i < d.inheritedCount; i++) {
+      GearMove info;
+      Gear_MoveInfo(d.inheritedMoves[i], &info);
+      ImGui::TextColored(ImColor(TypeColor(info.type)), "%s", Gear_MoveName(d.inheritedMoves[i]));
+      ImGui::SameLine();
+      ImGui::TextColored(ImColor(kTextDim), "(%s)", kHow[d.inheritedHow[i] < 4 ? d.inheritedHow[i] : 0]);
+    }
+  } else {
+    ImGui::TextColored(ImColor(kTextDim), "No moves passed on: the father knows none of its egg moves or TMs.");
+  }
 }
 
 // Moves as wrapped names in their type's colour
@@ -2620,12 +2884,13 @@ void DrawBosses() {
 // --- PC ------------------------------------------------------------------------------------
 
 // Segmented choice (one row); returns the chosen index
-int Segments(const char *id, const char *const *labels, int count, int value, float height = 34.0f) {
+int Segments(const char *id, const char *const *labels, int count, int value, float height) {
   const float width = ImGui::GetContentRegionAvail().x;
   const float gap = S(6.0f);
   const float w = (width - gap * (count - 1)) / count;
   const float h = S(height);
   ImDrawList *draw = ImGui::GetWindowDrawList();
+  sSegmentTapped = -1;
   ImGui::PushID(id);
   for (int i = 0; i < count; i++) {
     if (i > 0) {
@@ -2635,6 +2900,7 @@ int Segments(const char *id, const char *const *labels, int count, int value, fl
     ImGui::PushID(i);
     if (Tap("segment", ImVec2(w, h))) {
       value = i;
+      sSegmentTapped = i;
     }
     const bool held = ImGui::IsItemActive() && !sDragging;
     ImGui::PopID();
