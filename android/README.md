@@ -47,7 +47,9 @@ next page.
   cap, the game clock (hours and days ahead of the device's), the Nuzlocke helper, 60
   FPS options, drawing every DS frame.
 * **Display**: 3D sharpness and edge smoothing, second display, layout, swap screens,
-  widescreen (experimental), vsync.
+  widescreen (experimental), texture packs, vsync.
+* **GBA slot**: a Ruby, Sapphire, Emerald, FireRed or LeafGreen save in the DS's GBA
+  slot (see below).
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
 * **Gear**, **Cheats** (see below).
@@ -121,14 +123,21 @@ code changes (instant text and HP bars) are not carried over.
 Turn the second display off with *Settings > Display > Bottom screen on the second
 display*. *Swap screens* swaps which screen goes on which panel.
 
-**Widescreen overworld (experimental, off by default):** *Settings > Display >
-Widescreen* fills the Thor's 16:9 top panel with the overworld instead of a 4:3 box:
-the field camera sees more of the map on the left and right, unstretched. Text boxes,
-menus and the location banner stay 4:3 in the middle. It only applies on the overworld
-in clear weather with the bottom screen on the second display (not swapped); battles,
-menus and other screens stay 4:3, and so do rain, snow, sand, fog and dark caves, whose
-weather and darkness are 2D overlays that would only cover the middle. The Poke Radar
-keeps its patches while they are anywhere on the wider screen.
+**Widescreen (experimental, off by default):** *Settings > Display > Widescreen* fills
+the Thor's 16:9 top panel instead of a 4:3 box, on the overworld and in battles, with
+the bottom screen on the second display (not swapped):
+
+* **Overworld**: the field camera sees more of the map on the left and right,
+  unstretched. Text boxes, menus and the location banner stay 4:3 in the middle. The
+  next map blocks load in one frame, so running or cycling sideways doesn't show
+  unloaded ground at the edges. Rain, snow, sand, fog and dark caves stay 4:3: their
+  weather and darkness are 2D overlays that would only cover the middle. The Poke Radar
+  keeps its patches while they are anywhere on the wider screen.
+* **Battles**: the backdrop goes on across the whole screen, and the Pokemon, trainers
+  and move effects keep their places and shapes (with more room around them when they
+  slide in). The text box, HP boxes and the bases stay in the middle.
+
+Menus and other screens stay 4:3.
 
 ## Gear (lower-panel companion)
 
@@ -166,8 +175,9 @@ Pokegear and Kanto Gear:
   hurt), HP, status and level at a glance; tap a Pokemon for its portrait (its battle
   sprite, shiny colors included), moves, stats, ability, nature and item.
 * **Area**: the wild Pokemon of the route you are on for the current time of day
-  (walking, surfing, each rod, Poke Radar and swarms) with their icons, rates and
-  levels, and which ones you have caught. Species you have never seen show as a
+  (walking, surfing, each rod, Poke Radar, swarms and the GBA slot's game) with their
+  icons, rates and levels, and which ones you have caught. Tap one to look it up in the
+  Pokedex. Species you have never seen show as a
   silhouette while their names stay hidden. On top, the **shiny hunt** counters: Pokemon met (wild
   and one-off battles) since the last shiny with the odds of having seen one by now,
   eggs hatched and soft resets since then, the Poke Radar chain with its shiny rate per
@@ -175,6 +185,16 @@ Pokegear and Kanto Gear:
   have met since its last shiny (`x154`), and so does the battle tab for the wild
   Pokemon in front of you. The counters live beside the save slot (`save_slotN.hunt`),
   so soft resets don't take them back; *Reset* (tap twice) starts them over.
+* **Pokedex** (the switch at the top of Area): look up any Pokemon, A to Z with a
+  letter bar, and see its types, base stats, abilities, EV yield, catch rate, gender
+  ratio, egg groups, hatch steps, growth rate, how it evolves (and from what), where to
+  find it (every map's walking, surfing, rod, Poke Radar, swarm and GBA-slot tables,
+  with levels and the rate at each time of day), and its level-up moves, TMs/HMs, egg
+  moves and tutor moves. It's all read from the ROM, so Renegade Platinum shows its own
+  stats, learnsets, evolutions and encounters. Species you haven't seen stay hidden
+  unless the Gear reveals *Everything*.
+* **Pokétch** (once you have it): the Pokétch itself, bigger, on the whole lower panel.
+  Tap its screen and its buttons as usual; the app's name is shown with it.
 * **Trainer**: money, badges, Pokedex counts, play time and the save slot. Below, the
   **level cap** (the level of the next gym leader's strongest Pokemon, the Champion's
   after 8 badges; Pokemon over it show in yellow here and in Party) and the **bosses**:
@@ -198,6 +218,42 @@ Tap **Full** (or press **L3**) to give the Gear the whole lower panel and **Spli
 bring the DS touch screen back. Turn the Gear off
 (or change what it reveals) in *Settings > Gear*. On desktop builds it appears in the
 "Bottom Screen" window (F1 toggles full screen).
+
+## GBA slot (Pal Park and dual-slot Pokemon)
+
+On a DS Lite, Platinum looks in the GBA slot. *Settings > GBA slot* puts a game there
+without one:
+
+* Choose **Ruby, Sapphire, Emerald, FireRed or LeafGreen**, and **Choose a save**: a
+  `.sav` from a GBA emulator (mGBA, VBA, RetroArch, ...; 128 KB). The page shows whose
+  save it is, the play time and how many Pokemon are in the party and the PC. Importing
+  sets the slot to the save's pair of games (Ruby/Sapphire and FireRed/LeafGreen look
+  the same in a save: pick the right one of the two).
+* **Dual-slot Pokemon**: with the National Pokedex, some grass gets Pokemon from the
+  slot's game (the 4% slots), straight away. The Gear's Area tab lists them under *With
+  Emerald in the GBA slot*. This works with no save too.
+* **Pal Park**: once you have the National Pokedex the main menu offers *Migrate from
+  Emerald* (and so on) to send six Pokemon from the save's PC boxes to Pal Park, as on a
+  DS. The GBA game has to be in the same language as this one.
+* Platinum works on its own copy of the save: the file you picked never changes.
+  Migrating takes the Pokemon out of the copy, as from a cartridge; **Export the save**
+  to carry on with it in an emulator.
+
+## Texture packs
+
+*Settings > Display > Texture packs* replaces the game's 3D textures (the overworld,
+people, battle Pokemon and effects) with PNGs, the way Dolphin does, at any size: HD
+textures, fixes, recolours.
+
+* **Save the game's textures** writes each 3D texture as a PNG the first time it's
+  drawn, into `textures/dump/CPUE/` in the app's folder (on Android that's
+  `Android/data/org.pokeplatinum.port/files/`, reachable from a computer over USB). The
+  name is the texture's size, hashes of its data and of the colours it uses, and its
+  format: `tex_64x32_1a2b3c4d_5e6f7a8b_3.png`.
+* Edit one (keep its name; any size works) and put it in `textures/load/CPUE/`, in any
+  folders, or use **Add a pack** to copy a pack's folder in (its PNGs, with their
+  folders). **Look again** picks up files added by hand.
+* Menus, text and other 2D graphics aren't textures, so they stay as they are.
 
 ## Cheats
 
