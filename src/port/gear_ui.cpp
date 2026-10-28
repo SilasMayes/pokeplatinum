@@ -95,8 +95,8 @@ float S(float value) {
 
 // --- state -------------------------------------------------------------------------------
 
-enum App { APP_BATTLE, APP_PARTY, APP_AREA, APP_TRAINER, APP_SETTINGS, APP_COUNT };
-const char *const kAppNames[APP_COUNT] = {"Battle", "Party", "Area", "Trainer", "Settings"};
+enum App { APP_BATTLE, APP_PARTY, APP_AREA, APP_POKETCH, APP_TRAINER, APP_SETTINGS, APP_COUNT };
+const char *const kAppNames[APP_COUNT] = {"Battle", "Party", "Area", "Pok\xC3\xA9tch", "Trainer", "Settings"};
 
 App sApp = APP_PARTY;
 int sSelectedMon = -1;
@@ -431,21 +431,63 @@ void DrawFront(ImDrawList *draw, ImVec2 pos, float size, u16 species, u8 form, b
 
 // --- header ------------------------------------------------------------------------------
 
+// A cog: teeth around a ring
+void GearIcon(ImDrawList *draw, ImVec2 center, float radius, ImU32 color, ImU32 background) {
+  for (int i = 0; i < 8; i++) {
+    const float angle = i * 3.14159265f / 4.0f;
+    const ImVec2 dir(std::cos(angle), std::sin(angle));
+    draw->AddLine(ImVec2(center.x + dir.x * radius * 0.6f, center.y + dir.y * radius * 0.6f),
+                  ImVec2(center.x + dir.x * radius * 1.3f, center.y + dir.y * radius * 1.3f), color, radius * 0.45f);
+  }
+  draw->AddCircleFilled(center, radius, color);
+  draw->AddCircleFilled(center, radius * 0.42f, background);
+}
+
+// Tabs that apply now: Battle in battles, the Pokétch once you have it (not in battles)
+bool AppAvailable(App app) {
+  switch (app) {
+  case APP_BATTLE:
+    return sInBattle;
+  case APP_POKETCH:
+    return !sInBattle && Gear_PoketchState() >= GEAR_POKETCH_SHOWN;
+  default:
+    return true;
+  }
+}
+
+// The Pokétch takes the whole lower screen while it's open
+bool sPoketchMadeFull = false;
+
+void SelectApp(App app) {
+  if (app == APP_POKETCH && sApp != APP_POKETCH && !SIM_Companion_IsFullScreen()) {
+    SIM_Companion_SetFullScreen(TRUE);
+    sPoketchMadeFull = true;
+  } else if (app != APP_POKETCH && sApp == APP_POKETCH && sPoketchMadeFull) {
+    SIM_Companion_SetFullScreen(FALSE);
+    sPoketchMadeFull = false;
+  }
+  sApp = app;
+  if (app == APP_PARTY) {
+    sSelectedMon = -1;
+  }
+}
+
 void DrawHeader(const SIM_CompanionFrame *frame) {
   ImDrawList *draw = ImGui::GetWindowDrawList();
   const float height = S(40.0f);
   ImVec2 origin = ImGui::GetCursorScreenPos();
   const float width = ImGui::GetContentRegionAvail().x;
 
-  // App tabs
+  // App tabs (Settings is a gear icon, to leave room)
   float x = origin.x;
   for (int i = 0; i < APP_COUNT; i++) {
-    if (i == APP_BATTLE && !sInBattle) {
+    if (!AppAvailable((App)i)) {
       continue;
     }
     const char *name = kAppNames[i];
+    const bool icon = i == APP_SETTINGS;
     ImVec2 textSize = TextSize(sBold, S(17.0f), name);
-    float tabWidth = textSize.x + S(22.0f);
+    float tabWidth = icon ? S(40.0f) : textSize.x + S(20.0f);
     ImGui::SetCursorScreenPos(ImVec2(x, origin.y));
     ImGui::PushID(i);
     bool pressed = Tap("tab", ImVec2(tabWidth, height));
@@ -453,15 +495,18 @@ void DrawHeader(const SIM_CompanionFrame *frame) {
     bool selected = sApp == i;
     draw->AddRectFilled(ImVec2(x, origin.y + S(4.0f)), ImVec2(x + tabWidth, origin.y + height - S(4.0f)),
                         selected ? kAccent : (ImGui::IsItemActive() ? kPanelPressed : kPanel), S(16.0f));
-    TextAt(draw, sBold, S(17.0f), ImVec2(x + (tabWidth - textSize.x) * 0.5f, origin.y + (height - textSize.y) * 0.5f),
-           selected ? IM_COL32(16, 24, 34, 255) : kText, name);
-    if (pressed) {
-      sApp = (App)i;
-      if (i == APP_PARTY) {
-        sSelectedMon = -1;
-      }
+    const ImU32 ink = selected ? IM_COL32(16, 24, 34, 255) : kText;
+    if (icon) {
+      GearIcon(draw, ImVec2(x + tabWidth * 0.5f, origin.y + height * 0.5f), S(8.0f), ink,
+               selected ? kAccent : (ImGui::IsItemActive() ? kPanelPressed : kPanel));
+    } else {
+      TextAt(draw, sBold, S(17.0f), ImVec2(x + (tabWidth - textSize.x) * 0.5f, origin.y + (height - textSize.y) * 0.5f),
+             ink, name);
     }
-    x += tabWidth + S(6.0f);
+    if (pressed) {
+      SelectApp((App)i);
+    }
+    x += tabWidth + S(5.0f);
   }
 
   // Expand/collapse, then the clock
@@ -1833,6 +1878,55 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
   }
 }
 
+// --- Pokétch ---------------------------------------------------------------------------------
+
+// The game's own Pokétch, its screen and side buttons as large as they fit (the DS draws
+// them there and takes the touches)
+void DrawPoketch(const SIM_CompanionFrame *frame) {
+  const int state = Gear_PoketchState();
+  if (state == GEAR_POKETCH_HIDDEN) {
+    ImGui::TextDisabled("The Pok\xC3\xA9tch comes back when this screen closes.");
+    return;
+  }
+  if (state != GEAR_POKETCH_SHOWN) {
+    ImGui::TextDisabled("You don't have the Pok\xC3\xA9tch yet.");
+    return;
+  }
+  if (!frame->fullScreen) {
+    // Split: it's on the DS screen right above
+    ImGui::TextColored(ImColor(kTextDim), "The Pok\xC3\xA9tch is on the DS screen above.");
+    if (ImGui::Button("Show it bigger here", ImVec2(0, S(36.0f))) && !sDragging) {
+      SIM_Companion_SetFullScreen(TRUE);
+    }
+    return;
+  }
+
+  // DS pixels 16..255 x 16..175: the screen and the app buttons beside it
+  constexpr int kX = 16, kY = 16, kW = 240, kH = 160;
+  const float width = ImGui::GetContentRegionAvail().x;
+  const float room = ImGui::GetContentRegionAvail().y - S(56.0f);
+  float scale = width / kW;
+  if (kH * scale > room && room > 0.0f) {
+    scale = room / kH;
+  }
+  // Whole DS pixels when that's close
+  const float whole = std::floor(scale);
+  if (whole >= 1.0f && whole >= scale * 0.8f) {
+    scale = whole;
+  }
+  const ImVec2 pos = ImGui::GetCursorScreenPos();
+  const float w = std::floor(kW * scale);
+  const float h = std::floor(kH * scale);
+  const float x = std::floor(pos.x + (width - w) * 0.5f);
+  SIM_Companion_ShowDsScreen(x, pos.y, w, h, kX, kY, kW, kH);
+  ImGui::Dummy(ImVec2(width, h + S(6.0f)));
+
+  ImGui::PushFont(sBold, S(18.0f));
+  ImGui::TextUnformatted(Gear_PoketchAppName(Gear_PoketchApp()));
+  ImGui::PopFont();
+  ImGui::TextColored(ImColor(kTextDim), "The buttons at the right switch apps. Tap a tab to go back.");
+}
+
 // --- bosses ------------------------------------------------------------------------------
 
 const char *const kStatShort[6] = {"HP", "Atk", "Def", "SpA", "SpD", "Spe"};
@@ -2235,6 +2329,9 @@ extern "C" void SIM_Prj_CompanionDraw(const SIM_CompanionFrame *frame) {
   if (sApp == APP_BATTLE && !sInBattle) {
     sApp = APP_PARTY;
   }
+  if (sApp == APP_POKETCH && !sInBattle && Gear_PoketchState() == GEAR_POKETCH_NOT_OBTAINED) {
+    SelectApp(APP_PARTY);
+  }
   switch (sApp) {
   case APP_BATTLE:
     DrawBattle(frame);
@@ -2244,6 +2341,9 @@ extern "C" void SIM_Prj_CompanionDraw(const SIM_CompanionFrame *frame) {
     break;
   case APP_AREA:
     DrawArea();
+    break;
+  case APP_POKETCH:
+    DrawPoketch(frame);
     break;
   case APP_TRAINER:
     DrawTrainer();

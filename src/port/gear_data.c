@@ -43,6 +43,7 @@
 #include "play_time.h"
 #include "pokedex.h"
 #include "pokeradar.h"
+#include "poketch.h"
 #include "pokemon.h"
 #include "rtc.h"
 #include "save_player.h"
@@ -261,6 +262,38 @@ static SaveData *RunningSave(void)
 {
     FieldSystem *fieldSystem = DEBUG_GetFieldSystem();
     return fieldSystem != NULL ? fieldSystem->saveData : NULL;
+}
+
+int Gear_PoketchState(void)
+{
+    FieldSystem *fieldSystem = DEBUG_GetFieldSystem();
+    if (fieldSystem == NULL || fieldSystem->saveData == NULL) {
+        return GEAR_POKETCH_NO_GAME;
+    }
+    if (!Poketch_IsEnabled(SaveData_GetPoketch(fieldSystem->saveData))) {
+        return GEAR_POKETCH_NOT_OBTAINED;
+    }
+    if (fieldSystem->processManager == NULL || fieldSystem->processManager->child != NULL || !fieldSystem->runningFieldMap) {
+        return GEAR_POKETCH_HIDDEN;
+    }
+    return GEAR_POKETCH_SHOWN;
+}
+
+int Gear_PoketchApp(void)
+{
+    SaveData *saveData = RunningSave();
+    return saveData != NULL ? (int)Poketch_CurrentAppID(SaveData_GetPoketch(saveData)) : -1;
+}
+
+const char *Gear_PoketchAppName(int app)
+{
+    static const char *const kNames[] = {
+        "Digital Watch", "Calculator", "Memo Pad", "Pedometer", "Pokemon List", "Friendship Checker",
+        "Dowsing Machine", "Berry Searcher", "Day-Care Checker", "Pokemon History", "Counter", "Analog Watch",
+        "Marking Map", "Link Searcher", "Coin Toss", "Move Tester", "Calendar", "Dot Artist", "Roulette",
+        "Trainer Counter", "Kitchen Timer", "Color Changer", "Matchup Checker", "Stopwatch", "Alarm Clock",
+    };
+    return app >= 0 && app < (int)NELEMS(kNames) ? kNames[app] : "";
 }
 
 BOOL Gear_SpeciesSeen(u16 species)

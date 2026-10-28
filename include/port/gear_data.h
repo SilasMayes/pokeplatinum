@@ -195,6 +195,17 @@ void Gear_NoteBattleDsScreen(void); // battle code: such a screen is up this fra
 // sub-screen/battle started from it)
 BOOL Gear_IsGameRunning(void);
 
+// The Pokétch on the DS touch screen
+enum GearPoketchState {
+    GEAR_POKETCH_NO_GAME = -1,
+    GEAR_POKETCH_NOT_OBTAINED = 0,
+    GEAR_POKETCH_SHOWN,   // on the DS touch screen now
+    GEAR_POKETCH_HIDDEN,  // another screen is up (a menu, a battle...)
+};
+int Gear_PoketchState(void);
+int Gear_PoketchApp(void); // the app on it (POKETCH_APPID_*), -1 outside a game
+const char *Gear_PoketchAppName(int app);
+
 int Gear_GetParty(GearMon out[GEAR_PARTY_MAX]);
 void Gear_GetTrainer(GearTrainer *out);
 void Gear_GetArea(GearArea *out);
