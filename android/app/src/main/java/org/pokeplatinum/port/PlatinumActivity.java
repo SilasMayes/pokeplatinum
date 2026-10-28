@@ -31,6 +31,7 @@ public class PlatinumActivity extends SDLActivity {
     private static final int REQUEST_OPEN_DOCUMENT = 0x504D;
     private static final int REQUEST_CREATE_DOCUMENT = 0x504E;
     private static final int REQUEST_OPEN_FOLDER = 0x504F;
+    private static final int REQUEST_IMPORT_FOLDER = 0x5050;
 
     /** File waiting to be written to the document the player is choosing (export). */
     private String pendingExportSource;
@@ -321,6 +322,99 @@ public class PlatinumActivity extends SDLActivity {
         }, "FolderImport").start();
     }
 
+    /** Extensions (".png,.dds") and target directory of the folder import in progress. */
+    private String importExtensions = "";
+    private String importTarget = "";
+
+    /**
+     * Called from native code (sim_files.cpp): let the player pick a folder whose files with
+     * one of the extensions are copied, keeping its folders, into target/NAME (NAME: the
+     * folder's). That path is reported through nativeDocumentPicked (null if cancelled or
+     * nothing was copied). A texture pack, say.
+     */
+    @SuppressWarnings("unused")
+    public void importFolder(String extensions, String target) {
+        importExtensions = ("," + (extensions != null ? extensions : "") + ",").toLowerCase();
+        importTarget = target != null ? target : "";
+        runOnUiThread(() -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            try {
+                startActivityForResult(intent, REQUEST_IMPORT_FOLDER);
+            } catch (ActivityNotFoundException e) {
+                Log.e(TAG, "No folder picker available", e);
+                nativeDocumentPicked(null);
+            }
+        });
+    }
+
+    private boolean wantedForImport(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 && importExtensions.contains("," + name.substring(dot).toLowerCase() + ",");
+    }
+
+    /** Copies a picked folder's wanted files and those of every folder in it. */
+    private int importTree(Uri tree, String documentId, File target, int depth) throws IOException {
+        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, documentId);
+        String[] columns = {
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+        };
+        int copied = 0;
+        try (Cursor cursor = getContentResolver().query(children, columns, null, null, null)) {
+            if (cursor == null) {
+                throw new IOException("Could not list " + tree);
+            }
+            while (cursor.moveToNext()) {
+                String id = cursor.getString(0);
+                String name = cursor.getString(1);
+                String mime = cursor.getString(2);
+                if (name == null) {
+                    continue;
+                }
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) {
+                    if (depth < 16) {
+                        copied += importTree(tree, id, new File(target, safeName(name)), depth + 1);
+                    }
+                    continue;
+                }
+                if (!wantedForImport(name)) {
+                    continue;
+                }
+                //noinspection ResultOfMethodCallIgnored
+                target.mkdirs();
+                Uri document = DocumentsContract.buildDocumentUriUsingTree(tree, id);
+                try (InputStream in = getContentResolver().openInputStream(document);
+                     OutputStream os = new FileOutputStream(new File(target, safeName(name)))) {
+                    if (in == null) {
+                        throw new IOException("Could not open " + name);
+                    }
+                    copy(in, os);
+                }
+                copied++;
+            }
+        }
+        return copied;
+    }
+
+    private void onImportFolderPicked(int resultCode, Intent data) {
+        Uri tree = (resultCode == RESULT_OK && data != null) ? data.getData() : null;
+        if (tree == null || importTarget.isEmpty()) {
+            nativeDocumentPicked(null);
+            return;
+        }
+        new Thread(() -> {
+            File target = new File(importTarget, treeName(tree));
+            try {
+                int copied = importTree(tree, DocumentsContract.getTreeDocumentId(tree), target, 0);
+                nativeDocumentPicked(copied > 0 ? target.getAbsolutePath() : null);
+            } catch (IOException | RuntimeException e) {
+                Log.e(TAG, "Folder import failed", e);
+                nativeDocumentPicked(null);
+            }
+        }, "FolderImport").start();
+    }
+
     private static void deleteRecursively(File file) {
         File[] children = file.listFiles();
         if (children != null) {
@@ -423,6 +517,10 @@ public class PlatinumActivity extends SDLActivity {
         }
         if (requestCode == REQUEST_OPEN_FOLDER) {
             onFolderPicked(resultCode, data);
+            return;
+        }
+        if (requestCode == REQUEST_IMPORT_FOLDER) {
+            onImportFolderPicked(resultCode, data);
             return;
         }
         if (requestCode == REQUEST_CREATE_DOCUMENT) {
