@@ -4946,8 +4946,24 @@ static BOOL BtlCmd_TrySleepTalk(BattleSystem *battleSys, BattleContext *battleCt
 }
 
 #ifdef SDK_PORT
+#include "port/cheats.h"
 #include "port/sim_config_prj.h"
 int Gear_LevelCap(void);
+
+// The EXP cheat's multiplier, no further than level 100
+static u32 BattleScript_PortScaleExp(Pokemon *mon, u32 exp)
+{
+    const u32 scaled = Cheats_ScaleExp(exp);
+    if (scaled == exp) {
+        return exp;
+    }
+    const u32 current = Pokemon_GetValue(mon, MON_DATA_EXPERIENCE, NULL);
+    const u32 maxExp = Pokemon_GetSpeciesBaseExpAt(Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL), MAX_POKEMON_LEVEL);
+    if (current >= maxExp) {
+        return exp;
+    }
+    return scaled < maxExp - current ? scaled : maxExp - current;
+}
 
 // See the hard level cap in BtlCmd_GetExp's state machine: the EXP a Pokemon may still
 // gain before reaching the cap
@@ -9800,7 +9816,9 @@ static void BattleScript_GetExpTask(SysTask *task, void *inData)
             }
 
 #ifdef SDK_PORT
-            // Hard level cap: no EXP past the level of the next gym leader's strongest
+            // EXP cheat, then the hard level cap: no EXP past the level of the next gym
+            // leader's strongest
+            totalExp = BattleScript_PortScaleExp(mon, totalExp);
             totalExp = BattleScript_PortCapExp(mon, totalExp);
 #endif
             u32 newExp = Pokemon_GetValue(mon, MON_DATA_EXPERIENCE, NULL);
@@ -10945,6 +10963,11 @@ static int BattleScript_CalcCatchShakes(BattleSystem *battleSys, BattleContext *
     if (BattleSystem_GetBattleType(battleSys) & BATTLE_TYPE_ALWAYS_CATCH) {
         return BALL_3_SHAKES_SUCCESS;
     }
+#ifdef SDK_PORT
+    if (Cheats_AlwaysCatch()) {
+        return BALL_3_SHAKES_SUCCESS;
+    }
+#endif
 
     u32 speciesMod;
     if (battleCtx->msgItemTemp == ITEM_SAFARI_BALL) {

@@ -282,6 +282,7 @@ static void FillMon(Pokemon *mon, GearMon *gm)
 
     gm->isEgg = Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL);
     gm->species = Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL);
+    gm->form = Pokemon_GetValue(mon, MON_DATA_FORM, NULL);
     gm->personality = Pokemon_GetValue(mon, MON_DATA_PERSONALITY, NULL);
 
     charcode_t nickname[MON_NAME_LEN + 1];
@@ -891,6 +892,7 @@ BOOL Gear_GetBattle(GearBattle *out)
         gb->enemy = BattleSystem_GetBattlerSide(sBattleSys, i) != BATTLE_SIDE_PLAYER;
         gb->playerControlled = BattlerData_GetBootState(BattleSystem_GetBattlerData(sBattleSys, i)) == BATTLER_BOOT_STATE_NORMAL;
         gb->species = mon->species;
+        gb->form = mon->formNum;
         gb->personality = mon->personality;
         MonDisplayName(mon->nickname, mon->hasNickname, mon->species, gb->nickname);
         gb->level = mon->level;

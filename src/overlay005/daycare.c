@@ -35,6 +35,10 @@
 
 #include "res/pokemon/species_egg_moves.h"
 
+#ifdef SDK_PORT
+#include "port/cheats.h"
+#endif
+
 typedef struct {
     int fatherMoves[LEARNED_MOVES_MAX];
     int sharedMoves[LEARNED_MOVES_MAX];
@@ -902,6 +906,13 @@ static int Daycare_GetEggCycleLength(FieldSystem *fieldSystem)
     int date = FieldSystem_GetMonth(fieldSystem) * 100 + FieldSystem_GetDayOfMonth(fieldSystem);
     int i;
 
+#ifdef SDK_PORT
+    // Cheat: eggs hatch after a few steps (each cycle takes them straight to hatching)
+    if (Cheats_FastEggs()) {
+        return 4;
+    }
+#endif
+
     if (FieldSystem_HasPenalty(fieldSystem)) {
         return 255;
     }
@@ -948,6 +959,11 @@ BOOL Daycare_Update(Daycare *daycare, Party *party, FieldSystem *fieldSystem)
     steps = Daycare_GetStepCounter(daycare);
     Daycare_SetStepCounter(daycare, ++steps);
 
+#ifdef SDK_PORT
+    if (Cheats_FastEggs() && steps > (u32)Daycare_GetEggCycleLength(fieldSystem)) {
+        steps = Daycare_GetEggCycleLength(fieldSystem); // the counter was past it when the cheat came on
+    }
+#endif
     if (steps == Daycare_GetEggCycleLength(fieldSystem)) {
         Daycare_SetStepCounter(daycare, 0);
         toSubtract = Party_GetEggCyclesToSubtract(party);
@@ -968,6 +984,11 @@ BOOL Daycare_Update(Daycare *daycare, Party *party, FieldSystem *fieldSystem)
                     } else {
                         eggCycles--;
                     }
+#ifdef SDK_PORT
+                    if (Cheats_FastEggs()) {
+                        eggCycles = 0;
+                    }
+#endif
 
                     Pokemon_SetValue(mon, MON_DATA_FRIENDSHIP, (u8 *)&eggCycles);
                 } else {

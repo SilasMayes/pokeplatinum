@@ -919,4 +919,11 @@ BOOL Pokemon_SetBallSeal(int param0, Pokemon *mon, enum HeapID heapID);
 void sub_02078B40(Pokemon *mon, UnkStruct_02078B40 *param1);
 void sub_02078E0C(UnkStruct_02078B40 *param0, Pokemon *mon);
 
+#ifdef SDK_PORT
+// See src/pokemon.c
+void BoxPokemon_PortToPk4(const BoxPokemon *boxMon, u8 *out);
+BOOL BoxPokemon_PortFromPk4(const u8 *pk4, BoxPokemon *out);
+void Pokemon_PortSetPersonality(Pokemon *mon, u32 personality);
+#endif
+
 #endif // POKEPLATINUM_POKEMON_H

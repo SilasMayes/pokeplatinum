@@ -57,6 +57,7 @@
 #include "res/trainers/classes/trbgra.naix"
 
 #ifdef SDK_PORT
+#include "port/cheats.h"
 #include "port/rom_patches.h"
 #endif
 
@@ -4735,6 +4736,11 @@ BOOL CanPokemonFormLearnTM(u16 monSpecies, int monForm, u8 tmID)
     if (monSpecies == SPECIES_EGG) {
         return FALSE;
     }
+#ifdef SDK_PORT
+    if (Cheats_AnyTM()) {
+        return TRUE;
+    }
+#endif
 
     u32 tmFlag;
     u8 speciesDataAttribute;
@@ -5410,5 +5416,24 @@ BOOL BoxPokemon_PortFromPk4(const u8 *pk4, BoxPokemon *out)
     Pokemon_EncryptData(boxMon.dataBlocks, sizeof(PokemonDataBlock) * 4, boxMon.checksum);
     *out = boxMon;
     return TRUE;
+}
+
+// A new personality for a stored (encrypted) Pokemon: its blocks move to the new order and
+// its party data is encrypted with the new key; everything else stays
+void Pokemon_PortSetPersonality(Pokemon *mon, u32 personality)
+{
+    if (mon->box.partyDecrypted || mon->box.boxDecrypted) {
+        return;
+    }
+    u8 pk4[136];
+    BoxPokemon_PortToPk4(&mon->box, pk4);
+    memcpy(pk4, &personality, 4);
+    BoxPokemon box;
+    if (!BoxPokemon_PortFromPk4(pk4, &box)) {
+        return;
+    }
+    Pokemon_DecryptData(&mon->party, sizeof(PartyPokemon), mon->box.personality);
+    Pokemon_EncryptData(&mon->party, sizeof(PartyPokemon), personality);
+    mon->box = box;
 }
 #endif

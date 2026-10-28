@@ -50,6 +50,7 @@
 #endif
 
 #ifdef SDK_PORT
+#include "port/cheats.h"
 #include "port/sim_config_prj.h"
 #endif
 
@@ -654,7 +655,11 @@ static void BattleControllerPlayer_CommandSelectionInput(BattleSystem *battleSys
                     }
                     #endif
                 }
-            } else if (Battler_IsTrappedMsg(battleSys, battleCtx, i, &msg)) {
+            } else if (
+#ifdef SDK_PORT
+                !Cheats_AlwaysEscape() &&
+#endif
+                Battler_IsTrappedMsg(battleSys, battleCtx, i, &msg)) {
                 if (BattleSystem_GetBattleStatusMask(battleSys) & BATTLE_STATUS_RECORDING) {
                     BattleSystem_SetStopRecording(battleSys, 1);
                     BattleSystem_IsRecordingStopped(battleSys, BattleSystem_GetBattleContext(battleSys));
@@ -2312,6 +2317,13 @@ static BOOL BattleControllerPlayer_DecrementPP(BattleSystem *battleSys, BattleCo
             }
         }
     }
+
+#ifdef SDK_PORT
+    // Cheat: the player's side uses no PP
+    if (Cheats_InfinitePP() && BattleSystem_GetBattlerSide(battleSys, battleCtx->attacker) == 0) {
+        ppCost = 0;
+    }
+#endif
 
     int moveSlot = Battler_SlotForMove(&ATTACKING_MON, battleCtx->moveTemp);
     if (ATTACKER_TURN_FLAGS.ppDecremented == FALSE && ATTACKER_TURN_FLAGS.struggling == FALSE) {

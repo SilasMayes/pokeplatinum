@@ -15,12 +15,15 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <unordered_map>
 
 #include "constants/battle/condition.h"
 #include "generated/genders.h"
 #include "generated/time_of_day.h"
 
+#include "port/cheats.h"
 #include "port/gear_data.h"
+#include "port/gear_sprites.h"
 #include "port/rom_patches.h"
 #include "port/save_slots.h"
 #include "port/nuzlocke.h"
@@ -339,6 +342,93 @@ const char *GenderSymbol(u8 gender) {
   return gender == GENDER_MALE ? "M" : (gender == GENDER_FEMALE ? "F" : "");
 }
 
+// --- Pokemon pictures (port/gear_sprites.h) ---------------------------------------------------
+
+// Decoded once, kept as textures. Decoding reads the game's files, so only a few new ones
+// per frame: a long list fills in over a few frames instead of stalling one.
+struct Picture {
+  unsigned int texture = 0; // 0: not there (no such sprite)
+};
+std::unordered_map<u64, Picture> sPictures;
+int sPictureLoadsThisFrame = 0;
+constexpr int kPictureLoadsPerFrame = 12;
+
+enum PictureKind { PICTURE_ICON = 1, PICTURE_FRONT = 2 };
+
+// The texture, or 0 when there is none (yet)
+unsigned int PictureTexture(PictureKind kind, u16 species, u8 form, bool egg, bool shiny, u8 gender, u32 personality) {
+  if (species == 0) {
+    return 0;
+  }
+  // Personality only changes Spinda's front sprite
+  const u32 spots = kind == PICTURE_FRONT && species == 327 ? personality : 0;
+  const u64 key = ((u64)kind << 60) | ((u64)(egg ? 1 : 0) << 59) | ((u64)(shiny ? 1 : 0) << 58) | ((u64)(gender & 3) << 56)
+                  | ((u64)form << 48) | ((u64)species << 32) | spots;
+  auto found = sPictures.find(key);
+  if (found != sPictures.end()) {
+    return found->second.texture;
+  }
+  if (sPictureLoadsThisFrame >= kPictureLoadsPerFrame) {
+    return 0;
+  }
+  sPictureLoadsThisFrame++;
+
+  Picture picture;
+  if (kind == PICTURE_ICON) {
+    static u32 pixels[GEAR_ICON_WIDTH * GEAR_ICON_HEIGHT];
+    if (GearSprites_Icon(species, form, egg ? TRUE : FALSE, pixels)) {
+      picture.texture = SIM_UI_CreateImage(GEAR_ICON_WIDTH, GEAR_ICON_HEIGHT, pixels);
+    }
+  } else {
+    static u32 pixels[GEAR_FRONT_SIZE * GEAR_FRONT_SIZE];
+    if (GearSprites_Front(species, gender, form, shiny ? TRUE : FALSE, egg ? TRUE : FALSE, personality, pixels)) {
+      picture.texture = SIM_UI_CreateImage(GEAR_FRONT_SIZE, GEAR_FRONT_SIZE, pixels);
+    }
+  }
+  sPictures[key] = picture;
+  return picture.texture;
+}
+
+// A size for pixel art: a whole multiple of its pixels when that's close to the wanted size
+float PixelSize(float wanted, float pixels) {
+  const float whole = std::floor(wanted / pixels + 0.001f) * pixels;
+  return whole >= wanted * 0.75f ? whole : std::floor(wanted);
+}
+
+// Party icon (32x32 frames), size x size at pos. frameSeconds > 0 animates it like the
+// game's party menu does (two frames); tint darkens it (silhouettes, fainted)
+void DrawIcon(ImDrawList *draw, ImVec2 pos, float size, u16 species, u8 form, bool egg, float frameSeconds = 0.0f,
+              ImU32 tint = IM_COL32_WHITE) {
+  const unsigned int texture = PictureTexture(PICTURE_ICON, species, form, egg, false, 0, 0);
+  if (texture == 0) {
+    return;
+  }
+  const int frame = frameSeconds > 0.0f ? (int)(ImGui::GetTime() / frameSeconds) & 1 : 0;
+  pos = ImVec2(std::floor(pos.x), std::floor(pos.y));
+  draw->AddImage(ImTextureRef((ImTextureID)(intptr_t)texture), pos, ImVec2(pos.x + size, pos.y + size),
+                 ImVec2(0.0f, frame * 0.5f), ImVec2(1.0f, frame * 0.5f + 0.5f), tint);
+}
+
+// How fast a party Pokemon's icon hops: lively when healthy, slow when hurt, still when fainted
+float IconFrameSeconds(int hp, int maxHp) {
+  if (hp <= 0 || maxHp <= 0) {
+    return 0.0f;
+  }
+  const float fraction = (float)hp / (float)maxHp;
+  return fraction > 0.5f ? 0.18f : (fraction > 0.2f ? 0.32f : 0.6f);
+}
+
+// Battle front sprite (80x80), size x size at pos
+void DrawFront(ImDrawList *draw, ImVec2 pos, float size, u16 species, u8 form, bool egg, bool shiny, u8 gender,
+               u32 personality) {
+  const unsigned int texture = PictureTexture(PICTURE_FRONT, species, form, egg, shiny, gender, personality);
+  if (texture == 0) {
+    return;
+  }
+  pos = ImVec2(std::floor(pos.x), std::floor(pos.y));
+  draw->AddImage(ImTextureRef((ImTextureID)(intptr_t)texture), pos, ImVec2(pos.x + size, pos.y + size));
+}
+
 // --- header ------------------------------------------------------------------------------
 
 void DrawHeader(const SIM_CompanionFrame *frame) {
@@ -442,38 +532,30 @@ void DrawMonCard(int index, ImVec2 size) {
   draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), held ? kPanelPressed : kPanel, S(12.0f));
   const float pad = S(10.0f);
 
-  TextAt(draw, sBold, S(18.0f), ImVec2(pos.x + pad, pos.y + pad), kText, MonName(mon));
+  // Its icon, hopping like in the party menu, and the name beside it
+  const float iconSize = PixelSize(S(48.0f), 32.0f);
+  const bool dead = Nuzlocke_Enabled() && !mon.isEgg && Nuzlocke_IsDead(mon.personality);
+  DrawIcon(draw, ImVec2(pos.x + S(2.0f), pos.y + S(4.0f) + (S(48.0f) - iconSize) * 0.5f), iconSize, mon.species, mon.form,
+           mon.isEgg, mon.isEgg ? 0.6f : IconFrameSeconds(mon.hp, mon.maxHp),
+           mon.hp == 0 && !mon.isEgg ? IM_COL32(150, 150, 150, 255) : IM_COL32_WHITE);
+  const float textX = pos.x + S(52.0f);
+
+  TextAt(draw, sBold, S(18.0f), ImVec2(textX, pos.y + pad), kText, MonName(mon));
   if (mon.isEgg) {
-    TextAt(draw, sRegular, S(15.0f), ImVec2(pos.x + pad, pos.y + pad + S(24.0f)), kTextDim, "Not hatched yet");
+    TextAt(draw, sRegular, S(15.0f), ImVec2(textX, pos.y + pad + S(24.0f)), kTextDim, "Not hatched yet");
     return;
   }
   if (mon.shiny) {
     ImVec2 nameSize = TextSize(sBold, S(18.0f), MonName(mon));
-    TextAt(draw, sBold, S(18.0f), ImVec2(pos.x + pad + nameSize.x + S(6.0f), pos.y + pad), kWarn, "*");
-  }
-  if (Nuzlocke_Enabled() && Nuzlocke_IsDead(mon.personality)) {
-    // Fainted for good: dimmed, with a cross
-    draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(24, 29, 38, 150), S(12.0f));
-    const ImVec2 c(pos.x + size.x - pad - S(8.0f), pos.y + size.y - pad - S(10.0f));
-    draw->AddLine(ImVec2(c.x, c.y - S(9.0f)), ImVec2(c.x, c.y + S(9.0f)), kBad, S(3.0f));
-    draw->AddLine(ImVec2(c.x - S(6.0f), c.y - S(3.0f)), ImVec2(c.x + S(6.0f), c.y - S(3.0f)), kBad, S(3.0f));
+    TextAt(draw, sBold, S(18.0f), ImVec2(textX + nameSize.x + S(6.0f), pos.y + pad), kWarn, "*");
   }
 
+  // Level and status under the name
   char level[16];
   snprintf(level, sizeof(level), "Lv %d", mon.level);
-  ImVec2 levelSize = TextSize(sRegular, S(16.0f), level);
   const bool overCap = ShowLevelCap() && sLevelCap > 0 && mon.level > sLevelCap;
-  TextAt(draw, overCap ? sBold : sRegular, S(16.0f), ImVec2(pos.x + size.x - pad - levelSize.x, pos.y + pad + S(1.0f)),
-         overCap ? kWarn : kTextDim, level);
-
-  // HP bar and numbers
-  float barY = pos.y + pad + S(28.0f);
-  Bar(draw, ImVec2(pos.x + pad, barY), ImVec2(size.x - pad * 2, S(9.0f)), mon.maxHp ? (float)mon.hp / mon.maxHp : 0.0f,
-      HpColor(mon.hp, mon.maxHp));
-
-  char hp[24];
-  snprintf(hp, sizeof(hp), "%d/%d", mon.hp, mon.maxHp);
-  TextAt(draw, sRegular, S(15.0f), ImVec2(pos.x + pad, barY + S(13.0f)), kText, hp);
+  const float line2 = pos.y + pad + S(24.0f);
+  TextAt(draw, overCap ? sBold : sRegular, S(15.0f), ImVec2(textX, line2), overCap ? kWarn : kTextDim, level);
 
   ImU32 statusColor;
   const char *status = mon.hp == 0 ? "FNT" : StatusLabel(mon.status, &statusColor);
@@ -481,11 +563,28 @@ void DrawMonCard(int index, ImVec2 size) {
     statusColor = kBad;
   }
   if (status != nullptr) {
-    ImVec2 statusSize = TextSize(sBold, S(14.0f), status);
-    ImVec2 badge(pos.x + size.x - pad - statusSize.x - S(12.0f), barY + S(12.0f));
-    draw->AddRectFilled(badge, ImVec2(badge.x + statusSize.x + S(12.0f), badge.y + statusSize.y + S(4.0f)), statusColor,
+    ImVec2 statusSize = TextSize(sBold, S(13.0f), status);
+    ImVec2 badge(textX + TextSize(sRegular, S(15.0f), level).x + S(8.0f), line2 + S(1.0f));
+    draw->AddRectFilled(badge, ImVec2(badge.x + statusSize.x + S(10.0f), badge.y + statusSize.y + S(3.0f)), statusColor,
                         S(6.0f));
-    TextAt(draw, sBold, S(14.0f), ImVec2(badge.x + S(6.0f), badge.y + S(2.0f)), IM_COL32(255, 255, 255, 255), status);
+    TextAt(draw, sBold, S(13.0f), ImVec2(badge.x + S(5.0f), badge.y + S(1.5f)), IM_COL32(255, 255, 255, 255), status);
+  }
+
+  // HP bar across the card, the numbers after it
+  char hp[24];
+  snprintf(hp, sizeof(hp), "%d/%d", mon.hp, mon.maxHp);
+  const ImVec2 hpSize = TextSize(sRegular, S(14.0f), hp);
+  const float barY = pos.y + S(60.0f);
+  TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + size.x - pad - hpSize.x, barY + S(4.5f) - hpSize.y * 0.5f), kText, hp);
+  Bar(draw, ImVec2(pos.x + pad, barY), ImVec2(size.x - pad * 2 - hpSize.x - S(8.0f), S(9.0f)),
+      mon.maxHp ? (float)mon.hp / mon.maxHp : 0.0f, HpColor(mon.hp, mon.maxHp));
+
+  if (dead) {
+    // Fainted for good: dimmed, with a cross
+    draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), IM_COL32(24, 29, 38, 150), S(12.0f));
+    const ImVec2 c(pos.x + size.x - pad - S(8.0f), pos.y + pad + S(9.0f));
+    draw->AddLine(ImVec2(c.x, c.y - S(9.0f)), ImVec2(c.x, c.y + S(9.0f)), kBad, S(3.0f));
+    draw->AddLine(ImVec2(c.x - S(6.0f), c.y - S(3.0f)), ImVec2(c.x + S(6.0f), c.y - S(3.0f)), kBad, S(3.0f));
   }
 }
 
@@ -501,12 +600,20 @@ void DrawMonDetail(const GearMon &mon) {
   draw->AddRectFilled(pos, ImVec2(pos.x + S(90.0f), pos.y + S(34.0f)), kPanel, S(14.0f));
   TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + S(18.0f), pos.y + S(7.0f)), kText, "< Party");
 
+  // Its portrait at the top right; the rows beside it stop short of it
+  const float portrait = PixelSize(S(160.0f), 80.0f);
+  const float portraitBottom = pos.y + portrait;
+  DrawFront(draw, ImVec2(pos.x + width - portrait, pos.y), portrait, mon.species, mon.form, mon.isEgg, mon.shiny,
+            mon.gender, mon.personality);
+  auto rowWidth = [&](float y) { return y < portraitBottom ? width - portrait - S(8.0f) : width; };
+
   ImGui::Dummy(ImVec2(0, S(4.0f)));
   ImGui::PushFont(sBold, S(24.0f));
   ImGui::TextUnformatted(MonName(mon));
   ImGui::PopFont();
   if (mon.isEgg) {
     ImGui::TextDisabled("This egg hasn't hatched yet.");
+    ImGui::Dummy(ImVec2(0, portraitBottom - ImGui::GetCursorScreenPos().y));
     return;
   }
 
@@ -525,7 +632,7 @@ void DrawMonDetail(const GearMon &mon) {
   char line[64];
   snprintf(line, sizeof(line), "HP %d/%d", mon.hp, mon.maxHp);
   TextAt(draw, sBold, S(16.0f), pos, kText, line);
-  Bar(draw, ImVec2(pos.x + S(140.0f), pos.y + S(5.0f)), ImVec2(width - S(140.0f), S(10.0f)),
+  Bar(draw, ImVec2(pos.x + S(140.0f), pos.y + S(5.0f)), ImVec2(rowWidth(pos.y) - S(140.0f), S(10.0f)),
       mon.maxHp ? (float)mon.hp / mon.maxHp : 0.0f, HpColor(mon.hp, mon.maxHp));
   ImGui::Dummy(ImVec2(width, S(24.0f)));
 
@@ -537,7 +644,7 @@ void DrawMonDetail(const GearMon &mon) {
   }
   TextAt(draw, sRegular, S(15.0f), pos, kTextDim, line);
   float expRange = (float)(mon.expNextLevel - mon.expLevelStart);
-  Bar(draw, ImVec2(pos.x + S(140.0f), pos.y + S(5.0f)), ImVec2(width - S(140.0f), S(8.0f)),
+  Bar(draw, ImVec2(pos.x + S(140.0f), pos.y + S(5.0f)), ImVec2(rowWidth(pos.y) - S(140.0f), S(8.0f)),
       expRange > 0 ? (float)(mon.exp - mon.expLevelStart) / expRange : 1.0f, kAccent);
   ImGui::Dummy(ImVec2(width, S(24.0f)));
 
@@ -554,7 +661,8 @@ void DrawMonDetail(const GearMon &mon) {
     }
     pos = ImGui::GetCursorScreenPos();
     const float rowHeight = S(44.0f);
-    draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), kPanel, S(10.0f));
+    const float moveWidth = rowWidth(pos.y);
+    draw->AddRectFilled(pos, ImVec2(pos.x + moveWidth, pos.y + rowHeight), kPanel, S(10.0f));
     float chip = TypeChip(draw, ImVec2(pos.x + S(8.0f), pos.y + S(10.0f)), move.type, S(24.0f));
     TextAt(draw, sBold, S(17.0f), ImVec2(pos.x + S(16.0f) + chip, pos.y + S(11.0f)), kText, Gear_MoveName(move.id));
 
@@ -566,7 +674,7 @@ void DrawMonDetail(const GearMon &mon) {
       snprintf(info, sizeof(info), "%s  PP %d/%d", category, move.pp, move.maxPp);
     }
     ImVec2 infoSize = TextSize(sRegular, S(15.0f), info);
-    TextAt(draw, sRegular, S(15.0f), ImVec2(pos.x + width - infoSize.x - S(10.0f), pos.y + S(13.0f)),
+    TextAt(draw, sRegular, S(15.0f), ImVec2(pos.x + moveWidth - infoSize.x - S(10.0f), pos.y + S(13.0f)),
            move.pp == 0 ? kBad : kTextDim, info);
     ImGui::Dummy(ImVec2(width, rowHeight + S(6.0f)));
   }
@@ -720,10 +828,16 @@ void DrawNuzlockeRun() {
   ImGui::PopFont();
   ImGui::Text("%d area%s: %d caught, %d missed. %d fainted for good.", run->areaCount, run->areaCount == 1 ? "" : "s",
               caught, run->areaCount - caught, run->deathCount);
+  const float iconSize = PixelSize(S(32.0f), 32.0f);
   for (int i = 0; i < run->deathCount; i++) {
     const NuzlockeDeath &death = run->deaths[i];
-    ImGui::TextColored(ImColor(kTextDim), "+ %s (%s, Lv %d), %s", death.name, Gear_SpeciesName(death.species), death.level,
+    const ImVec2 rowPos = ImGui::GetCursorScreenPos();
+    DrawIcon(ImGui::GetWindowDrawList(), ImVec2(rowPos.x, rowPos.y - S(8.0f)), iconSize, death.species, 0, false, 0.0f,
+             IM_COL32(150, 150, 150, 255));
+    ImGui::SetCursorScreenPos(ImVec2(rowPos.x + iconSize + S(4.0f), rowPos.y));
+    ImGui::TextColored(ImColor(kTextDim), "%s (%s, Lv %d), %s", death.name, Gear_SpeciesName(death.species), death.level,
                        Gear_LocationLabelName(death.location));
+    ImGui::SetCursorScreenPos(ImVec2(rowPos.x, ImGui::GetCursorScreenPos().y + S(8.0f)));
   }
 }
 
@@ -752,6 +866,13 @@ void DrawHunt() {
     }
   }
 
+  if (Cheats_ShinyOddsBoosted()) {
+    if (Cheats_ShinyOdds() <= 1) {
+      ImGui::TextColored(ImColor(kWarn), "Every wild Pokemon is shiny (Settings > Cheats)");
+    } else {
+      ImGui::TextColored(ImColor(kWarn), "Shiny odds 1 in %u (Settings > Cheats)", (unsigned)Cheats_ShinyOdds());
+    }
+  }
   char met[24];
   ImGui::Text("%s met since the last shiny", Thousands(hunt->encounters, met, sizeof(met)));
   if (hunt->encounters > 0) {
@@ -860,17 +981,22 @@ void DrawArea() {
       draw->AddCircleFilled(center, S(3.0f), kTextDim);
     }
 
+    // Its icon; a silhouette while it's never been seen
+    const float iconSize = PixelSize(S(32.0f), 32.0f);
+    DrawIcon(draw, ImVec2(pos.x + S(30.0f), pos.y + (rowHeight - iconSize) * 0.5f - S(2.0f)), iconSize, enc.species, 0, false,
+             0.0f, showName ? IM_COL32_WHITE : IM_COL32(0, 0, 0, 255));
+    const float nameX = pos.x + S(66.0f);
+
     const char *speciesName = showName ? Gear_SpeciesName(enc.species) : "???";
-    TextAt(draw, sBold, S(17.0f), ImVec2(pos.x + S(36.0f), pos.y + S(7.0f)), showName ? kText : kTextDim, speciesName);
+    TextAt(draw, sBold, S(17.0f), ImVec2(nameX, pos.y + S(7.0f)), showName ? kText : kTextDim, speciesName);
     // How many met since the last shiny one
     const u32 metCount = showName ? ShinyHunt_SpeciesCount(enc.species) : 0;
     if (metCount > 0) {
       char metText[24];
       char number[16];
       snprintf(metText, sizeof(metText), "x%s", Thousands(metCount, number, sizeof(number)));
-      TextAt(draw, sRegular, S(14.0f),
-             ImVec2(pos.x + S(36.0f) + TextSize(sBold, S(17.0f), speciesName).x + S(8.0f), pos.y + S(10.0f)), kTextDim,
-             metText);
+      TextAt(draw, sRegular, S(14.0f), ImVec2(nameX + TextSize(sBold, S(17.0f), speciesName).x + S(8.0f), pos.y + S(10.0f)),
+             kTextDim, metText);
     }
 
     char info[32];
@@ -1085,7 +1211,12 @@ void DrawOpponentCard(int battler, const char *side, ImVec2 size) {
   const float pad = S(8.0f);
 
   draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), kPanel, S(10.0f));
-  float x = pos.x + pad;
+  // Its icon at the left
+  const float iconSize = PixelSize(S(40.0f), 32.0f);
+  DrawIcon(draw, ImVec2(pos.x + S(2.0f), pos.y + (size.y - iconSize) * 0.5f - S(2.0f)), iconSize, b.species, b.form, false,
+           0.0f, fainted ? IM_COL32(110, 110, 110, 255) : IM_COL32_WHITE);
+  const float left = pos.x + S(4.0f) + iconSize;
+  float x = left;
   const float line1 = pos.y + S(5.0f);
   if (side != nullptr) {
     x += Badge(draw, ImVec2(x, line1 + S(1.0f)), side, kAccent, S(13.0f)) + S(6.0f);
@@ -1114,7 +1245,7 @@ void DrawOpponentCard(int battler, const char *side, ImVec2 size) {
   TextAt(draw, sBold, S(14.0f), ImVec2(pos.x + size.x - pad - hpSize.x, line1 + S(1.5f)), fainted ? kBad : kText, hp);
 
   const float line2 = pos.y + S(25.0f);
-  float x2 = pos.x + pad;
+  float x2 = left;
   if (discovery != GEAR_DISCOVERY_VANILLA) {
     x2 += TypeChips(draw, ImVec2(x2, line2), b.type1, b.type2, S(17.0f)) + S(6.0f);
   }
@@ -1652,10 +1783,16 @@ void DrawBattle(const SIM_CompanionFrame *frame) {
   if (sBattle.trainer && discovery == GEAR_DISCOVERY_EVERYTHING && sBattle.enemyPartyCount > 0) {
     ImGui::Dummy(ImVec2(0, S(4.0f)));
     SectionLabel("Opposing team");
+    const float iconSize = PixelSize(S(32.0f), 32.0f);
     for (int i = 0; i < sBattle.enemyPartyCount; i++) {
       const GearBattleMon &mon = sBattle.enemyParty[i];
+      const ImVec2 rowPos = ImGui::GetCursorScreenPos();
+      DrawIcon(ImGui::GetWindowDrawList(), ImVec2(rowPos.x, rowPos.y - S(8.0f)), iconSize, mon.species, 0, mon.isEgg, 0.0f,
+               mon.fainted ? IM_COL32(110, 110, 110, 255) : IM_COL32_WHITE);
+      ImGui::SetCursorScreenPos(ImVec2(rowPos.x + iconSize + S(4.0f), rowPos.y));
       ImGui::TextColored(ImColor(mon.fainted ? kTextDim : kText), "%s  Lv %d%s", mon.isEgg ? "Egg" : Gear_SpeciesName(mon.species),
                          mon.level, mon.fainted ? "  (fainted)" : "");
+      ImGui::SetCursorScreenPos(ImVec2(rowPos.x, ImGui::GetCursorScreenPos().y + S(8.0f)));
     }
   } else if (!sBattle.trainer && opponentCount > 0 && discovery != GEAR_DISCOVERY_VANILLA) {
     const GearBattler &wild = sBattle.battlers[opponents[0]];
@@ -1704,6 +1841,11 @@ const char *const kStatShort[6] = {"HP", "Atk", "Def", "SpA", "SpD", "Spe"};
 // its ability, nature and stats
 void DrawBossMon(const GearMon &mon) {
   const int discovery = Discovery();
+  // Its icon at the left of its lines
+  const float iconSize = PixelSize(S(32.0f), 32.0f);
+  const ImVec2 rowPos = ImGui::GetCursorScreenPos();
+  DrawIcon(ImGui::GetWindowDrawList(), ImVec2(rowPos.x, rowPos.y - S(9.0f)), iconSize, mon.species, mon.form, false);
+  ImGui::Indent(iconSize + S(4.0f));
   ImGui::PushFont(sBold, S(15.0f));
   ImGui::TextUnformatted(Gear_SpeciesName(mon.species));
   ImGui::PopFont();
@@ -1743,6 +1885,12 @@ void DrawBossMon(const GearMon &mon) {
     ImGui::TextColored(ImColor(kTextDim), "%s", stats);
   }
   ImGui::Unindent(S(10.0f));
+  ImGui::Unindent(iconSize + S(4.0f));
+  // Room for the icon when the lines were fewer than it is tall
+  const float bottom = rowPos.y + iconSize - S(6.0f);
+  if (ImGui::GetCursorScreenPos().y < bottom) {
+    ImGui::Dummy(ImVec2(0, bottom - ImGui::GetCursorScreenPos().y));
+  }
 }
 
 // A boss: a tappable header (title, name, where, team size and top level) and, open, the
@@ -2071,6 +2219,7 @@ extern "C" void SIM_Prj_CompanionSetup(float outputWidth) {
 extern "C" void SIM_Prj_CompanionDraw(const SIM_CompanionFrame *frame) {
   Refresh();
   UpdateDragState();
+  sPictureLoadsThisFrame = 0;
 
   ImGui::SetNextWindowPos(ImVec2(frame->x, frame->y));
   ImGui::SetNextWindowSize(ImVec2(frame->width, frame->height));

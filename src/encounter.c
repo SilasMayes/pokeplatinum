@@ -51,6 +51,7 @@
 #include "vars_flags.h"
 
 #ifdef SDK_PORT
+#include "port/cheats.h"
 #include "port/nuzlocke.h"
 #include "port/shiny_hunt.h"
 #endif
@@ -104,6 +105,7 @@ static BOOL FieldTask_RunBattle(FieldTask *task)
     switch (*state) {
     case 0:
 #ifdef SDK_PORT
+        Cheats_OnBattleStart(dto->battleType, dto->parties[BATTLER_ENEMY_1]);
         ShinyHunt_OnBattleStart(dto->battleType, dto->parties[BATTLER_ENEMY_1]);
         Nuzlocke_OnBattleStart(dto->battleType, dto->parties[BATTLER_ENEMY_1]);
 #endif

@@ -82,6 +82,27 @@ static int IniHandler(void* user, const char* section, const char* name,
     if(MATCH("Cheats", "RunFromTrainerBattles")) {
         config->runFromTrainerBattles = StringToBool(value);
     }
+    if(MATCH("Cheats", "ShinyOdds")) {
+        config->shinyOdds = atoi(value);
+    }
+    if(MATCH("Cheats", "ExpPercent")) {
+        config->expPercent = atoi(value);
+    }
+    if(MATCH("Cheats", "AlwaysCatch")) {
+        config->alwaysCatch = StringToBool(value);
+    }
+    if(MATCH("Cheats", "InfinitePP")) {
+        config->infinitePP = StringToBool(value);
+    }
+    if(MATCH("Cheats", "AlwaysEscape")) {
+        config->alwaysEscape = StringToBool(value);
+    }
+    if(MATCH("Cheats", "FastEggs")) {
+        config->fastEggs = StringToBool(value);
+    }
+    if(MATCH("Cheats", "AnyTM")) {
+        config->anyTM = StringToBool(value);
+    }
 
     // Saves section
     if(MATCH("Saves", "Slot")) {
@@ -156,6 +177,13 @@ void SIM_Config_prj_LoadDefaults(SIM_Config_prj_type * aConfig)
   aConfig->walkThroughWalls = FALSE;
   aConfig->disableRandomEncounters = FALSE;
   aConfig->runFromTrainerBattles = FALSE;
+  aConfig->shinyOdds = 0;
+  aConfig->expPercent = 100;
+  aConfig->alwaysCatch = FALSE;
+  aConfig->infinitePP = FALSE;
+  aConfig->alwaysEscape = FALSE;
+  aConfig->fastEggs = FALSE;
+  aConfig->anyTM = FALSE;
 
   // Saves section
   aConfig->saveSlot = 1;
@@ -208,6 +236,13 @@ void SIM_Config_prj_SaveConfigFile(SIM_Config_prj_type * aConfig)
     fprintf(configFile, "WalkThroughWalls=%s\n", BoolToString(aConfig->walkThroughWalls));
     fprintf(configFile, "DisableRandomEncounters=%s\n", BoolToString(aConfig->disableRandomEncounters));
     fprintf(configFile, "RunFromTrainerBattles=%s\n", BoolToString(aConfig->runFromTrainerBattles));
+    fprintf(configFile, "ShinyOdds=%d\n", aConfig->shinyOdds);
+    fprintf(configFile, "ExpPercent=%d\n", aConfig->expPercent);
+    fprintf(configFile, "AlwaysCatch=%s\n", BoolToString(aConfig->alwaysCatch));
+    fprintf(configFile, "InfinitePP=%s\n", BoolToString(aConfig->infinitePP));
+    fprintf(configFile, "AlwaysEscape=%s\n", BoolToString(aConfig->alwaysEscape));
+    fprintf(configFile, "FastEggs=%s\n", BoolToString(aConfig->fastEggs));
+    fprintf(configFile, "AnyTM=%s\n", BoolToString(aConfig->anyTM));
     fprintf(configFile, "\n");
 
     fprintf(configFile, "[Saves]\n");

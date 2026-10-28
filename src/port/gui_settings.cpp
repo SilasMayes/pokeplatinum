@@ -411,13 +411,52 @@ void DrawGear()
 
 // --- Cheats ----------------------------------------------------------------------------------
 
+// An int setting picked from a few values
+bool ConfigChoice(const char *label, const char *help, int *setting, const int *values, const char *const *labels,
+    int count)
+{
+    int index = 0;
+    for (int i = 0; i < count; i++) {
+        if (values[i] == *setting) {
+            index = i;
+        }
+    }
+    if (Choice(label, help, &index, labels, count)) {
+        *setting = values[index];
+        SaveConfig();
+        return true;
+    }
+    return false;
+}
+
 void DrawCheats()
 {
     SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+
+    Section("Exploring");
     ConfigToggle("Walk through walls", nullptr, &config->walkThroughWalls);
     ConfigToggle("No wild encounters", "Wild Pokemon don't appear in grass, caves or water.",
         &config->disableRandomEncounters);
+    ConfigToggle("Eggs hatch in a few steps", "Eggs in your party hatch after a few steps.", &config->fastEggs);
+
+    Section("Battles");
+    static const int kExpValues[] = { 100, 150, 200, 300, 500 };
+    static const char *const kExpLabels[] = { "1x", "1.5x", "2x", "3x", "5x" };
+    ConfigChoice("EXP from battles", "How much EXP your Pokemon get, on top of the game's own bonuses.",
+        &config->expPercent, kExpValues, kExpLabels, 5);
+    ConfigToggle("Every Poke Ball catches", "Wild Pokemon are caught with the first ball, whatever the ball.",
+        &config->alwaysCatch);
+    ConfigToggle("Moves don't use PP", "Your Pokemon's moves never run out in battle.", &config->infinitePP);
+    ConfigToggle("Always get away", "Running from wild Pokemon always works, even when they trap you.",
+        &config->alwaysEscape);
     ConfigToggle("Run from trainer battles", nullptr, &config->runFromTrainerBattles);
+
+    Section("Pokemon");
+    static const int kShinyValues[] = { 0, 1024, 256, 64, 1 };
+    static const char *const kShinyLabels[] = { "Normal", "1/1024", "1/256", "1/64", "Always" };
+    ConfigChoice("Shiny odds", "Wild Pokemon (legendaries too) and hatched eggs. Normal is the game's own 1 in 8192.",
+        &config->shinyOdds, kShinyValues, kShinyLabels, 5);
+    ConfigToggle("Any Pokemon learns any TM or HM", "Every Pokemon can be taught every TM and HM.", &config->anyTM);
 }
 
 // --- Debugging (on the Advanced page) --------------------------------------------------------
@@ -443,7 +482,7 @@ void SIM_Prj_SettingsPages()
     SIM::Settings::AddPage("Save editor", "Pokemon, items, money, badges, legendary events", SaveEditor_Draw, 25);
     SIM::Settings::AddPage("Gameplay", "Instant text, HM-free moves, level cap, clock, Nuzlocke, 60 FPS", DrawGameplay, 30);
     SIM::Settings::AddPage("Gear", "The lower-screen companion", DrawGear, 70);
-    SIM::Settings::AddPage("Cheats", "Walk through walls, no encounters", DrawCheats, 80);
+    SIM::Settings::AddPage("Cheats", "Shiny odds, EXP, catching, PP, walls, encounters", DrawCheats, 80);
     SIM::Settings::AddPage("Advanced", nullptr, DrawDebug, 90);
 }
 

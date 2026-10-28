@@ -156,4 +156,10 @@ void NARC_Seek(NARC *narc, u32 offset);
  */
 u16 NARC_GetFileCount(NARC *narc);
 
+#ifdef SDK_PORT
+// The whole member in a malloc'd buffer (free() it), outside the game's heaps; NULL when
+// the archive or the member isn't there or is empty
+void *NARC_PortReadMember(enum NarcID narcID, int memberIndex, u32 *outSize);
+#endif
+
 #endif // POKEPLATINUM_NARC_H

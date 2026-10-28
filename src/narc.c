@@ -3,6 +3,10 @@
 #include <nitro.h>
 #include <string.h>
 
+#ifdef SDK_PORT
+#include <stdlib.h>
+#endif
+
 #include "heap.h"
 
 // Mapping of NARC indices to filesystem paths.
@@ -387,6 +391,63 @@ u32 NARC_GetMemberSizeByIndexPair(enum NarcID narcID, int memberIndex)
 
     return chunkSize;
 }
+
+#ifdef SDK_PORT
+void *NARC_PortReadMember(enum NarcID narcID, int memberIndex, u32 *outSize)
+{
+    if (outSize != NULL) {
+        *outSize = 0;
+    }
+    if (narcID < 0 || narcID >= (int)NELEMS(sNarcPaths) || sNarcPaths[narcID] == NULL || memberIndex < 0) {
+        return NULL;
+    }
+
+    FSFile file;
+    FS_InitFile(&file);
+    if (!FS_OpenFile(&file, sNarcPaths[narcID])) {
+        return NULL;
+    }
+
+    u16 fatbStart = 0;
+    u32 fatbSize = 0;
+    u32 fntbSize = 0;
+    u16 fileCount = 0;
+    u32 fileStart = 0;
+    u32 fileEnd = 0;
+    void *data = NULL;
+
+    FS_SeekFile(&file, 12, FS_SEEK_SET);
+    FS_ReadFile(&file, &fatbStart, 2);
+    FS_SeekFile(&file, fatbStart + 4, FS_SEEK_SET);
+    FS_ReadFile(&file, &fatbSize, 4);
+    FS_ReadFile(&file, &fileCount, 2);
+    if (memberIndex < fileCount) {
+        const u32 fntbStart = fatbStart + fatbSize;
+        FS_SeekFile(&file, fntbStart + 4, FS_SEEK_SET);
+        FS_ReadFile(&file, &fntbSize, 4);
+        const u32 fimgStart = fntbStart + fntbSize;
+
+        FS_SeekFile(&file, fatbStart + 12 + memberIndex * 8, FS_SEEK_SET);
+        FS_ReadFile(&file, &fileStart, 4);
+        FS_ReadFile(&file, &fileEnd, 4);
+        if (fileEnd > fileStart && fileEnd - fileStart < 0x1000000) {
+            const u32 size = fileEnd - fileStart;
+            data = malloc(size);
+            FS_SeekFile(&file, fimgStart + 8 + fileStart, FS_SEEK_SET);
+            if (data != NULL && FS_ReadFile(&file, data, size) == (s32)size) {
+                if (outSize != NULL) {
+                    *outSize = size;
+                }
+            } else {
+                free(data);
+                data = NULL;
+            }
+        }
+    }
+    FS_CloseFile(&file);
+    return data;
+}
+#endif
 
 NARC *NARC_ctor(enum NarcID narcID, enum HeapID heapID)
 {

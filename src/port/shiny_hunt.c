@@ -10,6 +10,7 @@
 #include "constants/battle.h"
 #include "constants/species.h"
 
+#include "port/cheats.h"
 #include "port/gear_data.h"
 #include "port/save_slots.h"
 
@@ -135,7 +136,8 @@ u32 ShinyHunt_SpeciesCount(u16 species)
 
 double ShinyHunt_Chance(u32 tries)
 {
-    return 1.0 - pow(8191.0 / 8192.0, (double)tries);
+    const double odds = (double)Cheats_ShinyOdds();
+    return odds <= 1.0 ? 1.0 : 1.0 - pow((odds - 1.0) / odds, (double)tries);
 }
 
 void ShinyHunt_ResetCounters(void)

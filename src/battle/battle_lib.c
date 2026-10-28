@@ -48,6 +48,7 @@
 #include "res/text/bank/battle_strings.h"
 
 #ifdef SDK_PORT
+#include "port/cheats.h"
 #include "port/rom_patches.h"
 #endif
 
@@ -3298,6 +3299,13 @@ BOOL Battler_CanEscape(BattleSystem *battleSys, BattleContext *battleCtx, int ba
     u32 battleType = BattleSystem_GetBattleType(battleSys);
     int itemEffect = Battler_HeldItemEffect(battleCtx, battler);
     BOOL result = FALSE;
+
+#ifdef SDK_PORT
+    // Cheat: the player always gets away
+    if (Cheats_AlwaysEscape() && BattleSystem_GetBattlerSide(battleSys, battler) == 0) {
+        return TRUE;
+    }
+#endif
 
     if (itemEffect == HOLD_EFFECT_FLEE) {
         battleCtx->turnFlags[battler].fleeing = 1;

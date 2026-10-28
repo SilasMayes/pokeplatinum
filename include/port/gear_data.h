@@ -29,6 +29,7 @@ typedef struct GearMon {
     BOOL isEgg;
     BOOL shiny;
     u16 species;
+    u8 form;
     u32 personality;
     char nickname[GEAR_NAME_LEN];
     u8 level;
@@ -105,6 +106,7 @@ typedef struct GearBattler {
     BOOL enemy;          // on the opposing side
     BOOL playerControlled; // the local player picks its moves
     u16 species;
+    u8 form;
     u32 personality;     // to find it in the party
     char nickname[GEAR_NAME_LEN];
     u8 level;

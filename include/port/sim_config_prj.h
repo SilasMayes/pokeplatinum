@@ -28,6 +28,13 @@ typedef struct {
 	BOOL walkThroughWalls; // When enabled, allows the player to walk through walls
     BOOL disableRandomEncounters; // When enabled, all random encounters are turned off
     BOOL runFromTrainerBattles; // When enabled, allows running away from trainer battles
+    int shinyOdds;      // wild Pokemon and eggs shiny 1 in this many (0: the game's odds); port/cheats.h
+    int expPercent;     // EXP from battles, percent (100: normal)
+    BOOL alwaysCatch;   // every Poke Ball catches
+    BOOL infinitePP;    // the player's moves don't use PP
+    BOOL alwaysEscape;  // running from wild Pokemon always works
+    BOOL fastEggs;      // eggs hatch after a few steps
+    BOOL anyTM;         // any Pokemon can learn any TM or HM
 
     // Saves section
     int saveSlot; // Save slot in use, 1-based (slot 1 is the original save.bin)

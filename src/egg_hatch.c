@@ -38,6 +38,7 @@
 #include "vram_transfer.h"
 
 #ifdef SDK_PORT
+#include "port/cheats.h"
 #include "port/shiny_hunt.h"
 #endif
 
@@ -184,6 +185,7 @@ static BOOL FieldTask_HatchEgg(FieldTask *fieldTask)
     case 0:
         Egg_CreateHatchedMon(app->args.mon, HEAP_ID_FIELD2);
 #ifdef SDK_PORT
+        Cheats_OnEggHatched(app->args.mon);
         ShinyHunt_OnEggHatched(app->args.mon);
 #endif
         FieldTransition_FinishMap(fieldTask);

@@ -45,7 +45,7 @@ typedef struct ShinyHuntStats {
 const ShinyHuntStats *ShinyHunt_Get(void);
 // Pokemon of a species met since the last shiny one of that species
 u32 ShinyHunt_SpeciesCount(u16 species);
-// Chance of at least one shiny in that many tries at 1 in 8192 each (0..1)
+// Chance of at least one shiny in that many tries at the current odds (Cheats_ShinyOdds)
 double ShinyHunt_Chance(u32 tries);
 
 // Starts the counts over (the log and the totals stay)

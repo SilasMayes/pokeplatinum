@@ -50,7 +50,7 @@ next page.
   widescreen (experimental), vsync.
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
-* **Gear**, **Cheats**.
+* **Gear**, **Cheats** (see below).
 * **Advanced**: frame timings, the game's assertion checks, and *Developer windows* (the
   original floating debug windows: libntr, multiplayer, Gen Pokemon, Gen Items, Jump to
   Map...).
@@ -162,11 +162,13 @@ Pokegear and Kanto Gear:
   Lagging Tail and Stall; not Quick Claw), and moves with priority show it (`+1`).
   With *Everything* revealed, the lists further down give exact damage in HP and the
   speeds, and also what the opponent's moves do to your Pokemon.
-* **Party**: HP, status and level at a glance; tap a Pokemon for its moves, stats,
-  ability, nature and item.
+* **Party**: each Pokemon's icon (hopping like in the party menu, slower when it's
+  hurt), HP, status and level at a glance; tap a Pokemon for its portrait (its battle
+  sprite, shiny colors included), moves, stats, ability, nature and item.
 * **Area**: the wild Pokemon of the route you are on for the current time of day
-  (walking, surfing, each rod, Poke Radar and swarms) with their rates and levels, and
-  which ones you have caught. On top, the **shiny hunt** counters: Pokemon met (wild
+  (walking, surfing, each rod, Poke Radar and swarms) with their icons, rates and
+  levels, and which ones you have caught. Species you have never seen show as a
+  silhouette while their names stay hidden. On top, the **shiny hunt** counters: Pokemon met (wild
   and one-off battles) since the last shiny with the odds of having seen one by now,
   eggs hatched and soft resets since then, the Poke Radar chain with its shiny rate per
   patch, and the last shiny found. Each species in the list shows how many of it you
@@ -188,10 +190,29 @@ Pokegear and Kanto Gear:
   (IVs/EVs, exact damage and speeds, the opponents' abilities, items, moves and whole
   team).
 
+The battle cards, the bosses' teams and the Nuzlocke graveyard show the Pokemon's icons
+too. The pictures come from the game's own graphics files, so a ROM hack's sprites show
+as they are.
+
 Tap **Full** (or press **L3**) to give the Gear the whole lower panel and **Split** to
 bring the DS touch screen back. Turn the Gear off
 (or change what it reveals) in *Settings > Gear*. On desktop builds it appears in the
 "Bottom Screen" window (F1 toggles full screen).
+
+## Cheats
+
+*Settings > Cheats*, all off by default:
+
+* **Exploring**: walk through walls, no wild encounters, eggs hatch in a few steps.
+* **Battles**: EXP from battles (1x, 1.5x, 2x, 3x or 5x, on top of the game's own
+  bonuses, never past level 100), every Poke Ball catches, moves don't use PP (your
+  side), always get away from wild Pokemon (even when trapped), run from trainer
+  battles.
+* **Pokemon**: shiny odds (the game's own 1 in 8192, or 1 in 1024, 256, 64, or every
+  one) for wild Pokemon, legendaries included, and hatched eggs. A Pokemon made shiny
+  keeps its nature, gender and ability. The Gear's shiny-hunt odds follow the setting.
+  *Any Pokemon learns any TM or HM* lets every Pokemon be taught every TM and HM (and,
+  with field moves without HMs, use them).
 
 ## Save editor
 
