@@ -1041,6 +1041,7 @@ pokeplatinum_c += files(
     'port/repel_prompt.c',
     'port/gear_sprites.c',
     'port/gear_dex.c',
+    'port/gear_pc.c',
     'port/gui_saves.cpp',
     'port/gui_settings.cpp',
     'port/gear_data.c',

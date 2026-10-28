@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <string>
 #include <unordered_map>
 
 #include "constants/battle/condition.h"
@@ -25,6 +26,7 @@
 #include "port/cheats.h"
 #include "port/gear_data.h"
 #include "port/gba_slot.h"
+#include "port/gear_pc.h"
 #include "port/gear_dex.h"
 #include "port/gear_sprites.h"
 #include "port/rom_patches.h"
@@ -98,8 +100,8 @@ float S(float value) {
 
 // --- state -------------------------------------------------------------------------------
 
-enum App { APP_BATTLE, APP_PARTY, APP_AREA, APP_POKETCH, APP_TRAINER, APP_SETTINGS, APP_COUNT };
-const char *const kAppNames[APP_COUNT] = {"Battle", "Party", "Area", "Pok\xC3\xA9tch", "Trainer", "Settings"};
+enum App { APP_BATTLE, APP_PARTY, APP_AREA, APP_POKETCH, APP_PC, APP_TRAINER, APP_SETTINGS, APP_COUNT };
+const char *const kAppNames[APP_COUNT] = {"Battle", "Party", "Area", "Pok\xC3\xA9tch", "PC", "Trainer", "Settings"};
 
 App sApp = APP_PARTY;
 int sSelectedMon = -1;
@@ -490,7 +492,7 @@ void DrawHeader(const SIM_CompanionFrame *frame) {
     const char *name = kAppNames[i];
     const bool icon = i == APP_SETTINGS;
     ImVec2 textSize = TextSize(sBold, S(17.0f), name);
-    float tabWidth = icon ? S(40.0f) : textSize.x + S(20.0f);
+    float tabWidth = icon ? S(40.0f) : textSize.x + S(16.0f);
     ImGui::SetCursorScreenPos(ImVec2(x, origin.y));
     ImGui::PushID(i);
     bool pressed = Tap("tab", ImVec2(tabWidth, height));
@@ -2615,6 +2617,353 @@ void DrawBosses() {
 
 // --- trainer -----------------------------------------------------------------------------
 
+// --- PC ------------------------------------------------------------------------------------
+
+// Segmented choice (one row); returns the chosen index
+int Segments(const char *id, const char *const *labels, int count, int value, float height = 34.0f) {
+  const float width = ImGui::GetContentRegionAvail().x;
+  const float gap = S(6.0f);
+  const float w = (width - gap * (count - 1)) / count;
+  const float h = S(height);
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  ImGui::PushID(id);
+  for (int i = 0; i < count; i++) {
+    if (i > 0) {
+      ImGui::SameLine(0.0f, gap);
+    }
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::PushID(i);
+    if (Tap("segment", ImVec2(w, h))) {
+      value = i;
+    }
+    const bool held = ImGui::IsItemActive() && !sDragging;
+    ImGui::PopID();
+    const bool selected = value == i;
+    draw->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h), selected ? kAccent : (held ? kPanelPressed : kPanel), S(12.0f));
+    ImVec2 size = TextSize(sBold, S(15.0f), labels[i]);
+    TextAt(draw, sBold, S(15.0f), ImVec2(pos.x + (w - size.x) * 0.5f, pos.y + (h - size.y) * 0.5f),
+           selected ? IM_COL32(16, 24, 34, 255) : kText, labels[i]);
+  }
+  ImGui::PopID();
+  ImGui::Dummy(ImVec2(0, S(2.0f)));
+  return value;
+}
+
+// A wide button; true when tapped
+bool WideButton(const char *id, const char *label, bool enabled = true, bool primary = false) {
+  const float width = ImGui::GetContentRegionAvail().x;
+  const float h = S(40.0f);
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  const bool tapped = Tap(id, ImVec2(width, h)) && enabled;
+  const bool held = ImGui::IsItemActive() && !sDragging && enabled;
+  const ImU32 fill = !enabled ? kPanel : (primary ? (held ? kPanelPressed : kAccent) : (held ? kPanelPressed : kPanel));
+  draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + h), fill, S(12.0f));
+  ImVec2 size = TextSize(sBold, S(16.0f), label);
+  TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + (width - size.x) * 0.5f, pos.y + (h - size.y) * 0.5f),
+         !enabled ? kTextDim : (primary ? IM_COL32(16, 24, 34, 255) : kText), label);
+  return tapped;
+}
+
+bool sPCBag = false;     // the bag instead of the boxes
+int sPCBox = -1;         // the box shown (-1: the game's current one)
+GearBoxMon sPCMons[GEAR_PC_BOXES][GEAR_PC_BOX_SLOTS];
+char sPCNames[GEAR_PC_BOXES][24];
+int sPCReadAt = -1000;   // ImGui frame of the last read
+u16 sPCFind = 0;         // the species looked for (0: none)
+int sPCFindLetter = 0;
+int sPCSortKey = GEAR_PC_SORT_DEX;
+int sPCConfirmAllUntil = 0;
+int sBagSortKey = GEAR_BAG_SORT_NAME;
+std::string sPCStatus;
+
+void ReadPC(bool now) {
+  const int frame = ImGui::GetFrameCount();
+  if (!now && frame - sPCReadAt < 60) {
+    return;
+  }
+  sPCReadAt = frame;
+  for (int box = 0; box < GEAR_PC_BOXES; box++) {
+    Gear_PCReadBox(box, sPCMons[box]);
+    Gear_PCBoxName(box, sPCNames[box], sizeof(sPCNames[box]));
+  }
+}
+
+int CountInBox(int box) {
+  int count = 0;
+  for (int slot = 0; slot < GEAR_PC_BOX_SLOTS; slot++) {
+    count += sPCMons[box][slot].species != SPECIES_NONE ? 1 : 0;
+  }
+  return count;
+}
+
+void DrawBoxGrid(int box) {
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const float width = ImGui::GetContentRegionAvail().x;
+  const float cell = width / 6.0f;
+  const float cellH = cell * 0.95f;
+  const float iconSize = PixelSize(cell * 0.82f, 32.0f);
+  ImVec2 origin = ImGui::GetCursorScreenPos();
+  draw->AddRectFilled(origin, ImVec2(origin.x + width, origin.y + cellH * 5), kPanel, S(10.0f));
+  for (int slot = 0; slot < GEAR_PC_BOX_SLOTS; slot++) {
+    const GearBoxMon &mon = sPCMons[box][slot];
+    const ImVec2 pos(origin.x + (slot % 6) * cell, origin.y + (slot / 6) * cellH);
+    if (mon.species == SPECIES_NONE) {
+      draw->AddCircleFilled(ImVec2(pos.x + cell * 0.5f, pos.y + cellH * 0.5f), S(2.5f), kBarBack);
+      continue;
+    }
+    const bool match = sPCFind != 0 && mon.species == sPCFind && !mon.isEgg;
+    if (match) {
+      draw->AddRectFilled(ImVec2(pos.x + S(2.0f), pos.y + S(2.0f)), ImVec2(pos.x + cell - S(2.0f), pos.y + cellH - S(2.0f)),
+                          IM_COL32(96, 172, 232, 90), S(8.0f));
+      draw->AddRect(ImVec2(pos.x + S(2.0f), pos.y + S(2.0f)), ImVec2(pos.x + cell - S(2.0f), pos.y + cellH - S(2.0f)),
+                    kAccent, S(8.0f), 0, S(2.0f));
+    }
+    const bool dim = sPCFind != 0 && !match;
+    DrawIcon(draw, ImVec2(pos.x + (cell - iconSize) * 0.5f, pos.y + S(1.0f)), iconSize, mon.species, mon.form, mon.isEgg, 0.0f,
+             dim ? IM_COL32(255, 255, 255, 70) : IM_COL32_WHITE);
+    if (!mon.isEgg) {
+      char level[8];
+      snprintf(level, sizeof(level), "%u", (unsigned)mon.level);
+      ImVec2 size = TextSize(sBold, S(12.0f), level);
+      TextAt(draw, sBold, S(12.0f), ImVec2(pos.x + cell - size.x - S(5.0f), pos.y + cellH - size.y - S(3.0f)),
+             dim ? kTextDim : kText, level);
+    }
+    if (mon.shiny && !mon.isEgg) {
+      TextAt(draw, sBold, S(14.0f), ImVec2(pos.x + S(5.0f), pos.y + S(2.0f)), kWarn, "*");
+    }
+  }
+  ImGui::Dummy(ImVec2(width, cellH * 5));
+}
+
+void DrawPCFind() {
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const float width = ImGui::GetContentRegionAvail().x;
+  DexHeading("Find a Pokemon");
+
+  // The species in the boxes, A to Z, with where they are
+  if (sDexOrderCount == 0) {
+    sDexOrderCount = Gear_SpeciesByName(sDexOrder, MAX_SPECIES);
+  }
+  static int counts[MAX_SPECIES];
+  static u32 boxMasks[MAX_SPECIES];
+  memset(counts, 0, sizeof(counts));
+  memset(boxMasks, 0, sizeof(boxMasks));
+  for (int box = 0; box < GEAR_PC_BOXES; box++) {
+    for (int slot = 0; slot < GEAR_PC_BOX_SLOTS; slot++) {
+      const GearBoxMon &mon = sPCMons[box][slot];
+      if (mon.species != SPECIES_NONE && !mon.isEgg && mon.species < MAX_SPECIES) {
+        counts[mon.species]++;
+        boxMasks[mon.species] |= 1u << box;
+      }
+    }
+  }
+
+  // Letter filter, as the Pokédex's
+  const float gap = S(4.0f);
+  const int perRow = 14;
+  const float bw = (width - gap * (perRow - 1)) / perRow;
+  const float bh = S(30.0f);
+  for (int i = 0; i < 27; i++) {
+    if (i % perRow != 0) {
+      ImGui::SameLine(0.0f, gap);
+    }
+    const int letter = i == 0 ? 0 : 'A' + i - 1;
+    char label[4] = "All";
+    if (i > 0) {
+      label[0] = (char)letter;
+      label[1] = '\0';
+    }
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::PushID(1000 + i);
+    if (Tap("pcletter", ImVec2(bw, bh))) {
+      sPCFindLetter = letter;
+    }
+    ImGui::PopID();
+    const bool selected = sPCFindLetter == letter;
+    draw->AddRectFilled(pos, ImVec2(pos.x + bw, pos.y + bh), selected ? kAccent : kPanel, S(8.0f));
+    const float fontSize = i == 0 ? S(13.0f) : S(15.0f);
+    ImVec2 size = TextSize(sBold, fontSize, label);
+    TextAt(draw, sBold, fontSize, ImVec2(pos.x + (bw - size.x) * 0.5f, pos.y + (bh - size.y) * 0.5f),
+           selected ? IM_COL32(16, 24, 34, 255) : kText, label);
+  }
+
+  int shown = 0;
+  const float rowHeight = S(36.0f);
+  const float iconSize = PixelSize(S(32.0f), 32.0f);
+  for (int i = 0; i < sDexOrderCount; i++) {
+    const u16 species = sDexOrder[i];
+    if (counts[species] == 0) {
+      continue;
+    }
+    const char *name = Gear_SpeciesName(species);
+    if (sPCFindLetter != 0 && name[0] != sPCFindLetter) {
+      continue;
+    }
+    shown++;
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::PushID(species);
+    const bool tapped = Tap("pcfind", ImVec2(width, rowHeight));
+    const bool held = ImGui::IsItemActive() && !sDragging;
+    ImGui::PopID();
+    const bool selected = sPCFind == species;
+    draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + rowHeight), selected ? IM_COL32(52, 82, 110, 255)
+                                                                                : (held ? kPanelPressed : kPanel), S(8.0f));
+    DrawIcon(draw, ImVec2(pos.x + S(6.0f), pos.y + (rowHeight - iconSize) * 0.5f - S(2.0f)), iconSize, species, 0, false);
+    char title[48];
+    snprintf(title, sizeof(title), "%s  x%d", name, counts[species]);
+    TextAt(draw, sBold, S(16.0f), ImVec2(pos.x + S(46.0f), pos.y + S(8.0f)), kText, title);
+    // Its boxes
+    char boxList[80] = "";
+    int used = 0;
+    int listed = 0;
+    for (int box = 0; box < GEAR_PC_BOXES && used < (int)sizeof(boxList) - 6; box++) {
+      if (boxMasks[species] & (1u << box)) {
+        used += snprintf(boxList + used, sizeof(boxList) - used, "%s%d", listed ? ", " : "", box + 1);
+        listed++;
+      }
+    }
+    char where[96];
+    snprintf(where, sizeof(where), "%s %s", listed > 1 ? "Boxes" : "Box", boxList);
+    ImVec2 whereSize = TextSize(sRegular, S(14.0f), where);
+    TextAt(draw, sRegular, S(14.0f), ImVec2(pos.x + width - whereSize.x - S(10.0f), pos.y + S(10.0f)), kTextDim, where);
+    if (tapped) {
+      if (sPCFind == species) {
+        sPCFind = 0;
+      } else {
+        sPCFind = species;
+        for (int box = 0; box < GEAR_PC_BOXES; box++) {
+          if (boxMasks[species] & (1u << box)) {
+            sPCBox = box;
+            break;
+          }
+        }
+        ImGui::SetScrollY(0.0f);
+      }
+    }
+  }
+  if (shown == 0) {
+    ImGui::TextDisabled(sPCFindLetter != 0 ? "No Pokemon in the boxes by that letter." : "The boxes are empty.");
+  }
+}
+
+void DrawPCBoxes() {
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const float width = ImGui::GetContentRegionAvail().x;
+  if (sPCBox < 0 || sPCBox >= GEAR_PC_BOXES) {
+    sPCBox = Gear_PCCurrentBox();
+  }
+
+  // < Box name (count) >
+  const float h = S(40.0f);
+  const float arrow = S(52.0f);
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  if (Tap("pcprev", ImVec2(arrow, h))) {
+    sPCBox = (sPCBox + GEAR_PC_BOXES - 1) % GEAR_PC_BOXES;
+  }
+  draw->AddRectFilled(pos, ImVec2(pos.x + arrow, pos.y + h), ImGui::IsItemActive() ? kPanelPressed : kPanel, S(12.0f));
+  ImVec2 size = TextSize(sBold, S(20.0f), "<");
+  TextAt(draw, sBold, S(20.0f), ImVec2(pos.x + (arrow - size.x) * 0.5f, pos.y + (h - size.y) * 0.5f), kText, "<");
+  char title[48];
+  snprintf(title, sizeof(title), "%s  (%d/30)", sPCNames[sPCBox], CountInBox(sPCBox));
+  size = TextSize(sBold, S(17.0f), title);
+  TextAt(draw, sBold, S(17.0f), ImVec2(pos.x + (width - size.x) * 0.5f, pos.y + (h - size.y) * 0.5f), kText, title);
+  ImGui::SameLine(width - arrow + ImGui::GetStyle().WindowPadding.x * 0.0f);
+  ImGui::SetCursorScreenPos(ImVec2(pos.x + width - arrow, pos.y));
+  ImVec2 nextPos = ImGui::GetCursorScreenPos();
+  if (Tap("pcnext", ImVec2(arrow, h))) {
+    sPCBox = (sPCBox + 1) % GEAR_PC_BOXES;
+  }
+  draw->AddRectFilled(nextPos, ImVec2(nextPos.x + arrow, nextPos.y + h), ImGui::IsItemActive() ? kPanelPressed : kPanel,
+                      S(12.0f));
+  size = TextSize(sBold, S(20.0f), ">");
+  TextAt(draw, sBold, S(20.0f), ImVec2(nextPos.x + (arrow - size.x) * 0.5f, nextPos.y + (h - size.y) * 0.5f), kText, ">");
+  ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + h + S(6.0f)));
+
+  DrawBoxGrid(sPCBox);
+  if (sPCFind != 0) {
+    char line[64];
+    snprintf(line, sizeof(line), "Showing where %s is. Tap it below again to stop.", Gear_SpeciesName(sPCFind));
+    ImGui::TextColored(ImColor(kTextDim), "%s", line);
+  }
+
+  DexHeading("Sort");
+  static const char *const kKeys[] = {"Pok\xC3\xA9" "dex", "Name", "Level", "Type"};
+  sPCSortKey = Segments("pcsortkey", kKeys, 4, sPCSortKey);
+  const int frame = ImGui::GetFrameCount();
+  const bool confirming = frame < sPCConfirmAllUntil;
+  const float half = (width - S(8.0f)) * 0.5f;
+  ImGui::PushID("pcsortbuttons");
+  ImGui::BeginGroup();
+  ImGui::PushItemWidth(half);
+  ImVec2 row = ImGui::GetCursorScreenPos();
+  ImGui::SetCursorScreenPos(row);
+  ImGui::BeginChild("sortbox", ImVec2(half, S(42.0f)), 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
+  if (WideButton("sortbox", "Sort this box")) {
+    if (Gear_PCSort(sPCBox, sPCSortKey)) {
+      sPCStatus = std::string(sPCNames[sPCBox]) + " sorted.";
+    }
+    ReadPC(true);
+  }
+  ImGui::EndChild();
+  ImGui::SetCursorScreenPos(ImVec2(row.x + half + S(8.0f), row.y));
+  ImGui::BeginChild("sortall", ImVec2(half, S(42.0f)), 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
+  if (WideButton("sortall", confirming ? "Tap again: all boxes" : "Sort all boxes", true, confirming)) {
+    if (!confirming) {
+      sPCConfirmAllUntil = frame + 180;
+    } else {
+      sPCConfirmAllUntil = 0;
+      if (Gear_PCSort(-1, sPCSortKey)) {
+        sPCStatus = "Every box sorted, from Box 1 on.";
+      }
+      ReadPC(true);
+    }
+  }
+  ImGui::EndChild();
+  ImGui::PopItemWidth();
+  ImGui::EndGroup();
+  ImGui::PopID();
+  ImGui::TextColored(ImColor(kTextDim), "%s", sPCStatus.empty() ? "Sorting all boxes fills them in order from Box 1. "
+                                                                  "Eggs go last." : sPCStatus.c_str());
+
+  DrawPCFind();
+}
+
+void DrawBag() {
+  DexHeading("Sort the bag");
+  ImGui::TextWrapped("Every pocket in the order you choose. TMs and berries stay by number, as the game keeps them.");
+  static const char *const kKeys[] = {"By name", "By number"};
+  sBagSortKey = Segments("bagsortkey", kKeys, 2, sBagSortKey);
+  if (WideButton("bagsort", "Sort the bag", true, true)) {
+    sPCStatus = Gear_BagSort(sBagSortKey) ? "Bag sorted." : "";
+  }
+  if (!sPCStatus.empty()) {
+    ImGui::TextColored(ImColor(kTextDim), "%s", sPCStatus.c_str());
+  }
+}
+
+void DrawPC() {
+  static const char *const kViews[] = {"Boxes", "Bag"};
+  const int view = Segments("pcview", kViews, 2, sPCBag ? 1 : 0);
+  if ((view == 1) != sPCBag) {
+    sPCBag = view == 1;
+    sPCStatus.clear();
+  }
+  const char *reason = Gear_PCUnavailable();
+  if (reason != nullptr) {
+    ImGui::Dummy(ImVec2(0, S(6.0f)));
+    ImGui::TextWrapped("%s", reason);
+    sPCReadAt = -1000;
+    return;
+  }
+  ReadPC(false);
+  if (sPCBag) {
+    DrawBag();
+  } else {
+    DrawPCBoxes();
+  }
+}
+
 void DrawTrainer() {
   ImDrawList *draw = ImGui::GetWindowDrawList();
   if (!Gear_IsGameRunning()) {
@@ -2827,6 +3176,9 @@ extern "C" void SIM_Prj_CompanionDraw(const SIM_CompanionFrame *frame) {
     break;
   case APP_POKETCH:
     DrawPoketch(frame);
+    break;
+  case APP_PC:
+    DrawPC();
     break;
   case APP_TRAINER:
     DrawTrainer();
