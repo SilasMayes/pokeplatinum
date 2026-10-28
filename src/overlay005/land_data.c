@@ -1865,7 +1865,23 @@ static void LandDataManager_KillLoadMapModel(SysTask *sysTask)
     ctx->killLoadTask = TRUE;
 }
 
+static void LandDataManager_LazyLoadMapModelTaskStep(SysTask *sysTask, void *sysTaskParam);
+
 static void LandDataManager_LazyLoadMapModelTask(SysTask *sysTask, void *sysTaskParam)
+{
+#ifdef SDK_PORT
+    // The port reads files at once, so the whole map model loads in one frame instead of in
+    // 0xE000-byte steps: the next map blocks are there before they come into view, which a
+    // widescreen top screen does a few tiles sooner (port/widescreen.h)
+    MapModelLoaderTaskContext *portCtx = (MapModelLoaderTaskContext *)sysTaskParam;
+    while (portCtx->currentSubTask != MAP_MODEL_LOADER_SUBTASK_END_TASK && portCtx->killLoadTask != TRUE) {
+        LandDataManager_LazyLoadMapModelTaskStep(sysTask, sysTaskParam);
+    }
+#endif
+    LandDataManager_LazyLoadMapModelTaskStep(sysTask, sysTaskParam);
+}
+
+static void LandDataManager_LazyLoadMapModelTaskStep(SysTask *sysTask, void *sysTaskParam)
 {
     MapModelLoaderTaskContext *ctx = (MapModelLoaderTaskContext *)sysTaskParam;
 

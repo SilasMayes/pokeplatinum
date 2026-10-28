@@ -312,7 +312,23 @@ static void BDHC_LoadAccessList(NARC *narc, BDHC *bdhc, const BDHCHeader *bdhcHe
     NARC_ReadFile(narc, sizeof(u16) * bdhcHeader->accessListCount, bdhc->accessList);
 }
 
+static void BDHC_LazyLoadTaskStep(SysTask *sysTask, void *sysTaskParam);
+
 static void BDHC_LazyLoadTask(SysTask *sysTask, void *sysTaskParam)
+{
+#ifdef SDK_PORT
+    // All of it in one frame (once the map model is loaded), as the map model's loader does
+    // on the port (land_data.c)
+    BDHCLoaderTaskContext *portCtx = (BDHCLoaderTaskContext *)sysTaskParam;
+    while (portCtx->currentSubTask != BDHC_LOADER_SUBTASK_END_TASK && portCtx->killLoadTask != TRUE
+        && !(portCtx->currentSubTask == BDHC_LOADER_SUBTASK_PREPARE_FILE_LOAD && *portCtx->mapModelLoadTaskRunning)) {
+        BDHC_LazyLoadTaskStep(sysTask, sysTaskParam);
+    }
+#endif
+    BDHC_LazyLoadTaskStep(sysTask, sysTaskParam);
+}
+
+static void BDHC_LazyLoadTaskStep(SysTask *sysTask, void *sysTaskParam)
 {
     BOOL subTaskCompleted;
     BDHCLoaderTaskContext *ctx = (BDHCLoaderTaskContext *)sysTaskParam;
