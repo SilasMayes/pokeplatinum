@@ -1,6 +1,8 @@
 // 60 FPS scope; see include/port/frame_rate.h
 #include "port/frame_rate.h"
 
+#include "comm_manager.h"
+
 #include <nitro.h>
 #include <simulator/sim.h>
 #include <stdio.h>
@@ -26,7 +28,10 @@ static BOOL PlayerIsFreeOnOverworld(void)
         && !fieldSystem->processManager->pause
         && fieldSystem->processManager->child == NULL
         && fieldSystem->runningFieldMap
-        && !FieldSystem_IsRunningTask(fieldSystem);
+        && !FieldSystem_IsRunningTask(fieldSystem)
+        // Linked up (Union Room, Underground with others...): the original timing, which
+        // both sides' wireless code counts in frames
+        && !CommManager_IsInitializedNotPoketch();
 }
 
 void FrameRate_Update(void)

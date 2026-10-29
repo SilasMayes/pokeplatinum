@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.DocumentsContract;
@@ -473,6 +474,34 @@ public class PlatinumActivity extends SDLActivity {
             base = "/storage/" + volume; // an SD card or USB drive
         }
         return relative.isEmpty() ? base : base + "/" + relative;
+    }
+
+    private WifiManager.MulticastLock lanSearchLock;
+
+    /**
+     * Called from native code (sim_net.cpp) while the Link play page looks for devices
+     * hosting on the network: many devices drop Wi-Fi broadcasts unless an app holds a
+     * multicast lock.
+     */
+    @SuppressWarnings("unused")
+    public void setLanSearch(boolean searching) {
+        try {
+            if (searching) {
+                if (lanSearchLock == null) {
+                    WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+                    if (wifi == null) {
+                        return;
+                    }
+                    lanSearchLock = wifi.createMulticastLock("pokeplatinum-link");
+                    lanSearchLock.setReferenceCounted(false);
+                }
+                lanSearchLock.acquire();
+            } else if (lanSearchLock != null && lanSearchLock.isHeld()) {
+                lanSearchLock.release();
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Multicast lock", e);
+        }
     }
 
     /** Called from native code: whether files anywhere on the device's storage can be used. */

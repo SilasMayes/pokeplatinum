@@ -730,6 +730,14 @@ void DrawDebug()
 
 } // namespace
 
+// libntr's Link play page: where the link is used in this game
+extern "C" const char *SIM_Prj_LinkPlayHint(void)
+{
+    return "In the game: upstairs in any Pokemon Center. The middle counter's Union Room is for trading, battling and "
+           "chatting with the other player (talk to them there); the right-hand counter's Colosseum is for battles. "
+           "Both of you save on the way in, as on the DS.";
+}
+
 void SIM_Prj_SettingsPages()
 {
     SIM::Settings::AddPage("Games", "Reset to the title, switch games, add Renegade Platinum", DrawGames, 10);

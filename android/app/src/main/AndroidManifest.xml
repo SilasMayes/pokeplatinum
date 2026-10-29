@@ -11,6 +11,9 @@
     <!-- Local multiplayer over LAN/internet (enet) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Link play: finding devices hosting on the same Wi-Fi (broadcasts) -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Save sync: a folder another app (Syncthing...) keeps in step with other devices.
