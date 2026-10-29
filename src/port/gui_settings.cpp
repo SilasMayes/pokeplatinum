@@ -22,6 +22,7 @@
 #include "port/randomizer.h"
 #include "port/save_slots.h"
 #include "port/save_sync.h"
+#include "port/save_version.h"
 #include "port/sim_config_prj.h"
 #include "port/soft_reset.h"
 
@@ -356,6 +357,11 @@ void DrawSaves()
             snprintf(title, sizeof(title), "Slot %d: saved game", slot + 1);
             snprintf(subtitle, sizeof(subtitle), "%sDetails show once it has been loaded", slot == current ? "In use. " : "");
         }
+        if (info.hasData && SaveVersion_Count() > 0) {
+            const size_t used = strlen(subtitle);
+            snprintf(subtitle + used, sizeof(subtitle) - used, "%s%s", used > 0 ? ". " : "",
+                SaveVersion_Name(SaveVersion_ForSlot(slot)));
+        }
         const char *sync = SyncStateText(slot);
         if (sync != nullptr) {
             const size_t used = strlen(subtitle);
@@ -397,6 +403,24 @@ void DrawSaves()
             !busy && info.hasData)) {
         sSavesStatus.clear();
         ExportSlot(slot);
+    }
+    // Renegade Platinum's Complete / Classic: the version this save is played in
+    const int versions = SaveVersion_Count();
+    if (versions > 0 && info.hasData) {
+        const char *names[SIM_CART_VERSIONS_MAX];
+        for (int i = 0; i < versions; i++) {
+            names[i] = SaveVersion_Name(i);
+        }
+        int version = SaveVersion_ForSlot(slot);
+        if (Choice("Version", inUse ? "This slot's game is running: go back to the main menu to change it."
+                                    : "The one this save started in. Change it only for a save from the other "
+                                      "version (an imported one): Pokemon you have keep their abilities and stats.",
+                &version, names, versions, !inUse)) {
+            SaveVersion_SetForSlot(slot, version);
+            char text[96];
+            snprintf(text, sizeof(text), "Slot %d now plays %s.", slot + 1, SaveVersion_Name(version));
+            SetSavesStatus(text, false);
+        }
     }
     DrawSlotSync(slot, atMenu);
     Status(sSavesStatus.c_str(), sSavesError);

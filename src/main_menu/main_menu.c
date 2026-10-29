@@ -58,6 +58,7 @@
 #include <stdio.h>
 
 #include "port/save_slots.h"
+#include "port/save_version.h"
 
 #include "constants/charcode.h"
 
@@ -138,6 +139,9 @@ enum MainMenuAppState {
     MAIN_MENU_STATE_EXIT,
     MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION,
     MAIN_MENU_STATE_UNUSED_9,
+#ifdef SDK_PORT
+    MAIN_MENU_STATE_ASK_VERSION, // a game with versions asks which one the new game is
+#endif
 };
 
 enum MainMenuWirelessCheckState {
@@ -1258,6 +1262,21 @@ static BOOL MainMenu_Init(ApplicationManager *appMan, int *unused)
     return TRUE;
 }
 
+#ifdef SDK_PORT
+// Renegade Platinum added with its Classic patch has two versions (Complete, Classic): a new
+// game asks which one first (port/save_version.h). TRUE when the question is up: the menu
+// waits for the answer in MAIN_MENU_STATE_ASK_VERSION, then starts the intro.
+static BOOL AskVersionForNewGame(int *state, BOOL canCancel)
+{
+    if (SaveVersion_Count() == 0) {
+        return FALSE;
+    }
+    SaveVersion_AskForNewGame(canCancel);
+    *state = MAIN_MENU_STATE_ASK_VERSION;
+    return TRUE;
+}
+#endif
+
 static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
 {
     MainMenuAppData *appData = ApplicationManager_Data(appMan);
@@ -1296,6 +1315,11 @@ static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
 
         if (appData->isNewGame == TRUE) {
             appData->nextApplication = NEXT_APP_GAME_INTRO;
+#ifdef SDK_PORT
+            if (AskVersionForNewGame(state, FALSE)) {
+                break;
+            }
+#endif
             MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_OUT, MAIN_MENU_STATE_EXIT, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
         } else {
             DetectGBAGame(appData);
@@ -1367,7 +1391,9 @@ static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
 #ifdef SDK_PORT
             if (appData->nextApplication == NEXT_APP_GAME_INTRO && appData->emptySlot) {
                 // Nothing to overwrite in this slot
-                MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_OUT, MAIN_MENU_STATE_EXIT, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
+                if (!AskVersionForNewGame(state, TRUE)) {
+                    MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_OUT, MAIN_MENU_STATE_EXIT, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
+                }
                 break;
             }
 #endif
@@ -1417,10 +1443,29 @@ static BOOL MainMenu_Main(ApplicationManager *appMan, int *state)
             if (appData->alertDismissKeys & PAD_BUTTON_B) {
                 *state = MAIN_MENU_STATE_SELECT_OPTION;
             } else {
+#ifdef SDK_PORT
+                if (AskVersionForNewGame(state, TRUE)) {
+                    break;
+                }
+#endif
                 MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_OUT, MAIN_MENU_STATE_EXIT, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
             }
         }
         break;
+#ifdef SDK_PORT
+    case MAIN_MENU_STATE_ASK_VERSION: {
+        const int answer = SaveVersion_TakeNewGameAnswer();
+        if (answer == -2) {
+            break; // still asking
+        }
+        if (answer < 0) {
+            *state = MAIN_MENU_STATE_SELECT_OPTION; // went back
+            break;
+        }
+        MainMenuUtil_StartScreenFadeToState(FADE_TYPE_BRIGHTNESS_OUT, MAIN_MENU_STATE_EXIT, state, MAIN_MENU_STATE_WAIT_SCREEN_TRANSITION);
+        break;
+    }
+#endif
     case MAIN_MENU_STATE_EXIT:
         FreeApplicationResources(appMan);
         return TRUE;

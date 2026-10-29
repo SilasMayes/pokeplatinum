@@ -9,6 +9,7 @@
 #include <time.h>
 
 #include "port/autosave.h"
+#include "port/save_version.h"
 #include "port/save_sync.h"
 #include "charcode_convert.h"
 #include "port/sim_config_prj.h"
@@ -226,6 +227,7 @@ void SaveSlots_Select(SaveData *saveData, int slot)
 void SaveSlots_OnSaved(SaveData *saveData)
 {
     WriteSummary(sCurrentSlot, saveData, TRUE);
+    SaveVersion_OnSaved(sCurrentSlot);
     Autosave_NoteSaved();
     SaveSync_OnSaved(sCurrentSlot);
 }
@@ -233,6 +235,7 @@ void SaveSlots_OnSaved(SaveData *saveData)
 void SaveSlots_OnLoaded(SaveData *saveData)
 {
     WriteSummary(sCurrentSlot, saveData, FALSE);
+    SaveVersion_OnSlotLoaded(sCurrentSlot);
     Autosave_NoteSaved();
 }
 
@@ -326,10 +329,12 @@ BOOL SaveSlots_ReplaceImage(int slot, const u8 *image, char *err, int errSize)
         return FALSE;
     }
 
-    // The old summary belongs to the replaced save; it is rebuilt when the slot loads
+    // The old summary belongs to the replaced save; it is rebuilt when the slot loads. So
+    // does its version (an imported save is taken to be the game's own until told otherwise)
     char infoPath[64];
     InfoPath(slot, infoPath, sizeof(infoPath));
     remove(infoPath);
+    SaveVersion_ForgetSlot(slot);
 
     // Replacing the slot shown on the main menu: reload it there
     if (slot == sCurrentSlot) {

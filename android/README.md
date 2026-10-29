@@ -81,18 +81,35 @@ found:
 * the patch that goes on the ROM: `RenegadePlatinum4997.xdelta`, or
   `RenegadePlatinum3541.xdelta` for early ROMs (the one that doesn't match is listed
   under *Not used*);
-* the extras that go on top of it, as switches: `ClassicVersion`, `SpeedUpPatch`;
-* extras that change the same thing as a choice: *ShinyRate: None / 1 4096 / 1 8192*.
+* the extras that go on top of it, as switches: `SpeedUpPatch`;
+* extras that change the same thing as a choice: *ShinyRate: None / 1 4096 / 1 8192*;
+* *Versions*: Complete and Classic (below).
 
-*Patch and add* builds the game and extracts it as a new game (named "Renegade Platinum
-Classic", "Renegade Platinum"...). Extras that change bytes in place are combined from
-their changes, so any of them can go together. Folders with several ROMs, a ROM of another
+*Patch and add* builds the game and extracts it as a new game ("Renegade Platinum").
+Extras that change bytes in place are combined from their changes, so any of them can go
+together. Folders with several ROMs, a ROM of another
 game, archives that still need unzipping and unsupported patch formats (IPS/BPS/UPS) are
 handled and explained on the same screen. On Android the folder's patches and Platinum ROMs
 are copied in first and deleted again afterwards.
 
 *Choose the files one by one* is still there: the ROM, then each patch in order. An
 already patched `.nds` can be added that way (or from a folder) without patches.
+
+**Complete or Classic, per save.** Renegade Platinum's Classic patch only changes the
+Pokemon data (170 Pokemon: Classic has the official types and base stats, as in the newer
+games with Fairy, and a few different abilities; trainers, wild Pokemon, moves and items
+are the same). So it isn't an extra to switch on: the game comes with both versions (the
+Classic data is kept next to the game's own, in `versions/`). Starting a new game asks
+*Which version?*, Complete or Classic, and the save keeps it: loading a slot plays its
+version, and *Settings > Saves* shows it on each slot (change it there only for a save
+imported from the other version, since Pokemon you have keep the abilities and stats they
+got). The Gear's settings tab shows the version of the save being played.
+
+Already added "Renegade Platinum Classic" (or Complete) on its own? Choose the folder
+again: the screen offers *Add them to Renegade Platinum Classic*, which gives that game
+the other version and keeps its saves (they stay the version they are) and its extras.
+It's then named "Renegade Platinum"; with save sync on, its saves go to that name's
+folder from then on.
 
 The hack's new data files (Pokemon, trainers, encounters, text, scripts...) load like
 the original's. The few things it changes inside the game's code are read from the
@@ -156,7 +173,7 @@ folder. Choose the folder on each device and turn on *Sync saves*.
 * In the folder each game gets a folder of its own (its name, e.g. `Renegade Platinum`),
   with each slot as `slotN.sav` (a plain 512 KB `.sav` emulators load) and `slotN.txt`
   (which device saved it, when, the trainer, play time, badges and the save's hash). The
-  Nuzlocke and shiny hunt records go along.
+  Nuzlocke and shiny hunt records, and the save's version (Complete or Classic), go along.
 * After every save (yours or autosave) the slot is copied there. A save made on the other
   device is brought in when the app starts, before the save is loaded, or on the main
   menu, which then reloads the slot. During a game it says so in the corner: reset to the

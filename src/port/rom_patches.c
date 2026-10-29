@@ -439,8 +439,16 @@ void RomPatches_DescribeRom(const char *dir, char *name, int nameSize)
         && (pool[8] | (pool[9] << 8) | (pool[10] << 16) | ((u32)pool[11] << 24)) != 0x0226ECD4;
 
     if (renegade) {
-        // Classic keeps the official typings: Charizard stays Fire/Flying (Dragon otherwise)
+        // Classic keeps the official typings: Charizard stays Fire/Flying (Dragon otherwise).
+        // With both versions (versions.ini, chosen per save) it's just Renegade Platinum.
         u8 types[2];
+        snprintf(path, sizeof(path), "%s/versions.ini", dir);
+        FILE *versions = fopen(path, "r");
+        if (versions != NULL) {
+            fclose(versions);
+            snprintf(name, nameSize, "Renegade Platinum");
+            return;
+        }
         snprintf(path, sizeof(path), "%s/poketool/personal/pl_personal.narc", dir);
         BOOL classic = ReadSpeciesTypes(path, SPECIES_CHARIZARD, types) && types[1] == 2;
         snprintf(name, nameSize, "%s", classic ? "Renegade Platinum Classic" : "Renegade Platinum");

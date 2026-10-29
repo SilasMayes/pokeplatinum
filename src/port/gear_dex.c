@@ -14,6 +14,7 @@
 
 #include "overlay006/wild_encounters.h"
 #include "port/gear_data.h"
+#include "port/save_version.h"
 #include "struct_defs/species.h"
 
 #include "item.h"
@@ -429,9 +430,15 @@ void Gear_SpeciesTypes(u16 species, u8 *type1, u8 *type2)
 {
     static u8 sTypes[MAX_SPECIES + 1][2];
     static BOOL sLoaded[MAX_SPECIES + 1];
+    static u32 sGeneration = 0;
     *type1 = *type2 = 0;
     if (species == SPECIES_NONE || species > MAX_SPECIES) {
         return;
+    }
+    // Another version's Pokemon data (Renegade Platinum's Classic / Complete)
+    if (sGeneration != SaveVersion_Generation()) {
+        sGeneration = SaveVersion_Generation();
+        memset(sLoaded, 0, sizeof(sLoaded));
     }
     if (!sLoaded[species]) {
         u32 size = 0;

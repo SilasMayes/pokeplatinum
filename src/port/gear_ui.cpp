@@ -33,6 +33,7 @@
 #include "port/gear_sprites.h"
 #include "port/rom_patches.h"
 #include "port/save_slots.h"
+#include "port/save_version.h"
 #include "port/nuzlocke.h"
 #include "port/shiny_hunt.h"
 #include "port/sim_config_prj.h"
@@ -3295,6 +3296,9 @@ void DrawGames() {
   ImGui::TextUnformatted("Game");
   ImGui::PopFont();
   ImGui::Text("Playing: %s", current->name);
+  if (SaveVersion_Count() > 0) {
+    ImGui::Text("Version: %s (this save's)", SaveVersion_Name(SaveVersion_InUse()));
+  }
   if (current->info[0] != '\0') {
     ImGui::TextColored(ImColor(kTextDim), "%s", current->info);
   }

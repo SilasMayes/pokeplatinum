@@ -35,6 +35,7 @@
 static const char *const kSidecars[][2] = {
     { "save_slot%d.nuzlocke", "slot%d.nuzlocke" },
     { "save_slot%d.hunt", "slot%d.hunt" },
+    { "save_slot%d.version", "slot%d.version" },
 };
 
 typedef struct ThereMeta {
