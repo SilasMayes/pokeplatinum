@@ -598,6 +598,23 @@ u8 Script_GetHiddenItemRange(u16 scriptID)
     return item[i].range;
 }
 
+#ifdef SDK_PORT
+// The Gear's map: the item a hidden item's script gives (ITEM_NONE if it isn't one)
+u16 Script_GetHiddenItemItem(u16 scriptID, u8 *quantity)
+{
+    const u16 itemScript = Script_GetHiddenItemScript(scriptID);
+    for (int i = 0; i < NELEMS(gHiddenItems); i++) {
+        if (gHiddenItems[i].script == itemScript) {
+            if (quantity != NULL) {
+                *quantity = gHiddenItems[i].qty;
+            }
+            return gHiddenItems[i].item;
+        }
+    }
+    return ITEM_NONE;
+}
+#endif
+
 static BOOL ScriptManager_SetHiddenItem(ScriptManager *scriptManager, u16 scriptID)
 {
     int i;

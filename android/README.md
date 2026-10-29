@@ -285,6 +285,18 @@ Pokegear and Kanto Gear:
   time then), about how many berries, whether the soil needs water and the mulch; ripe
   ones show how long the berries keep. Below, the trees around Sinnoh that start with
   berries, until you pick them.
+* **Map**: the area you're in, from above: where you can walk (floor, grass, tall grass,
+  water, sand, snow, ice, mud, cave floor, bridges), the ledges (a brown edge on the side
+  you jump down), the walls around it, the doors and ways out, and you with the way you
+  face. The neighbouring maps show dimmed around it. Over it, the items still to pick up:
+  **item balls** and, with the guide on, **hidden items** (the ones the Dowsing Machine
+  finds). Tap one, or one in the list under the map (nearest first, with how many steps
+  north/south/east/west), for what it is. Items you've picked up are gone from it. It
+  follows you; drag to look around, **+**/**-** to zoom (it starts fitted to the map), and
+  the target button to follow again. It's read from the ROM (each tile's terrain, the
+  map's events, what each ball's script gives) and the save's flags, so Renegade
+  Platinum's moved and changed items show as they are. With *Discovery* on *Vanilla*,
+  balls show as "An item" and hidden items stay hidden.
 * **Pokétch** (once you have it): the Pokétch itself, bigger, on the whole lower panel.
   Tap its screen and its buttons as usual; the app's name is shown with it.
 * **PC**: the boxes as they are, one at a time with each Pokemon's level (shiny ones

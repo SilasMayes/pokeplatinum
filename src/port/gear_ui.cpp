@@ -11,14 +11,17 @@
 
 #include <SDL2/SDL.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "constants/battle/condition.h"
+#include "constants/map_object.h"
 #include "constants/species.h"
 #include "generated/genders.h"
 #include "generated/time_of_day.h"
@@ -30,6 +33,7 @@
 #include "port/gear_daycare.h"
 #include "port/gear_pc.h"
 #include "port/gear_dex.h"
+#include "port/gear_map.h"
 #include "port/gear_sprites.h"
 #include "port/rom_patches.h"
 #include "port/save_slots.h"
@@ -103,8 +107,8 @@ float S(float value) {
 
 // --- state -------------------------------------------------------------------------------
 
-enum App { APP_BATTLE, APP_PARTY, APP_AREA, APP_POKETCH, APP_PC, APP_TRAINER, APP_SETTINGS, APP_COUNT };
-const char *const kAppNames[APP_COUNT] = {"Battle", "Party", "Area", "Pok\xC3\xA9tch", "PC", "Trainer", "Settings"};
+enum App { APP_BATTLE, APP_PARTY, APP_AREA, APP_MAP, APP_POKETCH, APP_PC, APP_TRAINER, APP_SETTINGS, APP_COUNT };
+const char *const kAppNames[APP_COUNT] = {"Battle", "Party", "Area", "Map", "Pok\xC3\xA9tch", "PC", "Trainer", "Settings"};
 
 App sApp = APP_PARTY;
 int sSelectedMon = -1;
@@ -260,9 +264,11 @@ bool Tap(const char *id, ImVec2 size) {
   return released && !sDragging;
 }
 
+bool sMapDragging = false; // a drag that started on the map pans it instead
+
 // Lets a finger scroll the current window
 void TouchScroll() {
-  if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem | ImGuiHoveredFlags_ChildWindows) &&
+  if (!sMapDragging && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem | ImGuiHoveredFlags_ChildWindows) &&
       ImGui::IsMouseDragging(0, S(10.0f))) {
     ImGui::SetScrollY(ImGui::GetScrollY() - ImGui::GetIO().MouseDelta.y);
   }
@@ -458,6 +464,8 @@ bool AppAvailable(App app) {
     return sInBattle;
   case APP_POKETCH:
     return !sInBattle && Gear_PoketchState() >= GEAR_POKETCH_SHOWN;
+  case APP_MAP:
+    return !sInBattle;
   default:
     return true;
   }
@@ -2880,6 +2888,482 @@ void DrawBosses() {
   }
 }
 
+// --- map ---------------------------------------------------------------------------------
+
+// The area around the player (port/gear_map.h): its terrain as a picture (4x4 pixels a tile),
+// with the player, the items still there and the warps drawn over it. Drag to look around,
+// - and + to zoom; it follows the player again with Follow.
+constexpr int kMapTilePixels = 4;
+
+struct MapView {
+  unsigned int texture = 0;
+  u32 version = 0; // GearMap.tilesVersion the picture shows
+  int mapHeaderID = -1;
+  float zoom = 0.0f; // S() pixels a tile; 0: not chosen yet
+  float centerX = 0.0f; // tiles, at the view's centre
+  float centerZ = 0.0f;
+  bool follow = true;
+  bool zoomed = false; // the player zoomed on this map (otherwise the zoom fits the map)
+  int selected = -1; // item index, or -1
+  ImVec2 viewMin, viewMax; // last frame's view rectangle (screen)
+};
+MapView sMapView;
+
+constexpr ImU32 kMapBackground = IM_COL32(18, 21, 28, 255);
+
+// A tile's 4x4 pixels (rows top to bottom), for its kind
+void MapTilePixels(u8 tile, u32 out[16]) {
+  auto rgb = [](int r, int g, int b) { return (u32)r | ((u32)g << 8) | ((u32)b << 16) | 0xFF000000u; };
+  const bool other = (tile & GEAR_MAP_OTHER_AREA) != 0;
+  const u32 floor = rgb(206, 206, 198);
+  u32 base = 0, accent = 0;
+  // pattern: which pixels take the accent colour
+  const char *pattern = "................";
+  switch (tile & GEAR_MAP_TILE_MASK) {
+  case GEAR_MAP_VOID:
+    for (int i = 0; i < 16; i++) {
+      out[i] = 0;
+    }
+    return;
+  case GEAR_MAP_WALL:
+    base = rgb(70, 76, 90);
+    break;
+  case GEAR_MAP_FLOOR:
+    base = floor;
+    break;
+  case GEAR_MAP_GRASS:
+    base = rgb(86, 172, 86), accent = rgb(62, 142, 64), pattern = ".x.......x..x...";
+    break;
+  case GEAR_MAP_TALL_GRASS:
+    base = rgb(52, 128, 62), accent = rgb(34, 98, 46), pattern = "x.x...x.x.x...x.";
+    break;
+  case GEAR_MAP_WATER:
+    base = rgb(64, 128, 218), accent = rgb(110, 168, 240), pattern = ".xx.........x..x";
+    break;
+  case GEAR_MAP_WATERFALL:
+    base = rgb(120, 176, 246), accent = rgb(230, 240, 255), pattern = ".x..x..x.x..x..x";
+    break;
+  case GEAR_MAP_SAND:
+    base = rgb(222, 204, 150), accent = rgb(200, 180, 124), pattern = "..x.......x.....";
+    break;
+  case GEAR_MAP_SNOW:
+    base = rgb(236, 242, 250), accent = rgb(206, 218, 236), pattern = ".x.......x......";
+    break;
+  case GEAR_MAP_ICE:
+    base = rgb(170, 222, 242), accent = rgb(225, 245, 255), pattern = "x....x....x....x";
+    break;
+  case GEAR_MAP_MUD:
+    base = rgb(132, 100, 72), accent = rgb(108, 80, 56), pattern = ".x....x.x......x";
+    break;
+  case GEAR_MAP_CAVE:
+    base = rgb(164, 128, 96), accent = rgb(146, 110, 80), pattern = "..x.x.......x...";
+    break;
+  case GEAR_MAP_LEDGE_NORTH:
+    base = floor, accent = rgb(120, 92, 62), pattern = "xxxx............";
+    break;
+  case GEAR_MAP_LEDGE_SOUTH:
+    base = floor, accent = rgb(120, 92, 62), pattern = "............xxxx";
+    break;
+  case GEAR_MAP_LEDGE_WEST:
+    base = floor, accent = rgb(120, 92, 62), pattern = "x...x...x...x...";
+    break;
+  case GEAR_MAP_LEDGE_EAST:
+    base = floor, accent = rgb(120, 92, 62), pattern = "...x...x...x...x";
+    break;
+  case GEAR_MAP_WARP:
+    base = rgb(250, 160, 46), accent = rgb(170, 90, 24), pattern = ".....xx..xx.....";
+    break;
+  case GEAR_MAP_BRIDGE:
+    base = rgb(184, 142, 100), accent = rgb(140, 104, 70), pattern = "xxxx........xxxx";
+    break;
+  case GEAR_MAP_ROCK_CLIMB:
+    base = rgb(150, 140, 128), accent = rgb(110, 102, 92), pattern = "x....x....x....x";
+    break;
+  case GEAR_MAP_SOIL:
+    base = rgb(118, 84, 58), accent = rgb(150, 112, 80), pattern = ".x.x.....x.x....";
+    break;
+  default:
+    base = floor;
+    break;
+  }
+  for (int i = 0; i < 16; i++) {
+    u32 color = pattern[i] == 'x' ? accent : base;
+    if (other) {
+      // A neighbouring map: dimmed towards the background
+      const int r = color & 0xFF, g = (color >> 8) & 0xFF, b = (color >> 16) & 0xFF;
+      color = rgb((r + 18 * 2) / 3 * 3 / 4 + 4, (g + 21 * 2) / 3 * 3 / 4 + 5, (b + 28 * 2) / 3 * 3 / 4 + 7);
+    }
+    out[i] = color;
+  }
+}
+
+void BuildMapTexture(const GearMap *map) {
+  if (sMapView.texture != 0) {
+    SIM_UI_DeleteImage(sMapView.texture);
+    sMapView.texture = 0;
+  }
+  const int w = map->width * kMapTilePixels, h = map->height * kMapTilePixels;
+  std::vector<u32> pixels((size_t)w * h);
+  u32 tile[16];
+  for (int z = 0; z < map->height; z++) {
+    for (int x = 0; x < map->width; x++) {
+      MapTilePixels(map->tiles[z * map->width + x], tile);
+      for (int py = 0; py < kMapTilePixels; py++) {
+        memcpy(&pixels[(size_t)(z * kMapTilePixels + py) * w + x * kMapTilePixels], &tile[py * 4], sizeof(u32) * 4);
+      }
+    }
+  }
+  sMapView.texture = SIM_UI_CreateImage(w, h, pixels.data());
+  sMapView.version = map->tilesVersion;
+}
+
+// "3 north, 5 east" of the player
+void MapDirections(int dx, int dz, char *out, size_t size) {
+  if (dx == 0 && dz == 0) {
+    snprintf(out, size, "where you stand");
+    return;
+  }
+  char ns[24] = "", ew[24] = "";
+  if (dz != 0) {
+    snprintf(ns, sizeof(ns), "%d %s", dz < 0 ? -dz : dz, dz < 0 ? "north" : "south");
+  }
+  if (dx != 0) {
+    snprintf(ew, sizeof(ew), "%d %s", dx < 0 ? -dx : dx, dx < 0 ? "west" : "east");
+  }
+  snprintf(out, size, "%s%s%s", ns, ns[0] && ew[0] ? ", " : "", ew);
+}
+
+void HiddenItemMark(ImDrawList *draw, ImVec2 c, float r) {
+  // A sparkle: a four-pointed star
+  const ImU32 fill = kWarn, edge = IM_COL32(60, 44, 10, 255);
+  ImVec2 points[8];
+  for (int i = 0; i < 8; i++) {
+    const float angle = i * 3.14159265f / 4.0f - 3.14159265f / 2.0f;
+    const float radius = (i % 2 == 0) ? r : r * 0.38f;
+    points[i] = ImVec2(c.x + std::cos(angle) * radius, c.y + std::sin(angle) * radius);
+  }
+  draw->AddConvexPolyFilled(points, 8, fill);
+  draw->AddPolyline(points, 8, edge, ImDrawFlags_Closed, S(1.2f));
+}
+
+void PlayerMark(ImDrawList *draw, ImVec2 c, float r, int dir) {
+  // A circle with a point on the side the player faces
+  float angle = 0.0f; // east
+  switch (dir) {
+  case DIR_NORTH:
+    angle = -3.14159265f / 2.0f;
+    break;
+  case DIR_SOUTH:
+    angle = 3.14159265f / 2.0f;
+    break;
+  case DIR_WEST:
+    angle = 3.14159265f;
+    break;
+  default:
+    break;
+  }
+  const ImVec2 tip(c.x + std::cos(angle) * r * 1.6f, c.y + std::sin(angle) * r * 1.6f);
+  const ImVec2 left(c.x + std::cos(angle + 2.2f) * r, c.y + std::sin(angle + 2.2f) * r);
+  const ImVec2 right(c.x + std::cos(angle - 2.2f) * r, c.y + std::sin(angle - 2.2f) * r);
+  draw->AddTriangleFilled(tip, left, right, IM_COL32(20, 26, 36, 255));
+  draw->AddCircleFilled(c, r + S(1.5f), IM_COL32(20, 26, 36, 255));
+  draw->AddCircleFilled(c, r, kAccent);
+  draw->AddTriangleFilled(ImVec2(c.x + std::cos(angle) * r * 1.35f, c.y + std::sin(angle) * r * 1.35f),
+                          ImVec2(c.x + std::cos(angle + 2.4f) * r * 0.55f, c.y + std::sin(angle + 2.4f) * r * 0.55f),
+                          ImVec2(c.x + std::cos(angle - 2.4f) * r * 0.55f, c.y + std::sin(angle - 2.4f) * r * 0.55f),
+                          IM_COL32(255, 255, 255, 255));
+}
+
+void DrawMap() {
+  ImDrawList *draw = ImGui::GetWindowDrawList();
+  const GearMap *map = Gear_GetMap();
+  if (!map->valid || map->width <= 0) {
+    ImGui::TextDisabled("Start or continue a game to see the map.");
+    return;
+  }
+  MapView &view = sMapView;
+  if (view.texture == 0 || view.version != map->tilesVersion) {
+    BuildMapTexture(map);
+  }
+  if (view.mapHeaderID != map->mapHeaderID) {
+    // Another map: follow the player there, zoomed to show it
+    view.mapHeaderID = map->mapHeaderID;
+    view.follow = true;
+    view.zoomed = false;
+    view.selected = -1;
+  }
+
+  // Which items show: the hidden ones and what's in the balls with the guide on
+  const bool guide = Discovery() != GEAR_DISCOVERY_VANILLA;
+  int shown[GEAR_MAP_MAX_ITEMS];
+  int shownCount = 0, hiddenCount = 0;
+  for (int i = 0; i < map->itemCount; i++) {
+    if (map->items[i].hidden && !guide) {
+      continue;
+    }
+    hiddenCount += map->items[i].hidden ? 1 : 0;
+    shown[shownCount++] = i;
+  }
+  if (view.selected >= map->itemCount || (view.selected >= 0 && map->items[view.selected].hidden && !guide)) {
+    view.selected = -1;
+  }
+
+  // Title: the place, and what's left to find
+  ImGui::PushFont(sBold, S(22.0f));
+  ImGui::TextUnformatted(Gear_LocationName(map->mapHeaderID));
+  ImGui::PopFont();
+  ImGui::SameLine();
+  if (shownCount == 0) {
+    ImGui::TextColored(ImColor(kTextDim), "  No items left here");
+  } else if (hiddenCount == shownCount) {
+    ImGui::TextColored(ImColor(kTextDim), "  %d hidden item%s", hiddenCount, hiddenCount == 1 ? "" : "s");
+  } else if (hiddenCount > 0) {
+    ImGui::TextColored(ImColor(kTextDim), "  %d items (%d hidden)", shownCount, hiddenCount);
+  } else {
+    ImGui::TextColored(ImColor(kTextDim), "  %d item%s", shownCount, shownCount == 1 ? "" : "s");
+  }
+
+  // The view
+  const ImVec2 origin = ImGui::GetCursorScreenPos();
+  const float width = ImGui::GetContentRegionAvail().x;
+  // The map fills what's shown; the item list fits under it when there's room (on a short
+  // Gear it's scrolled to)
+  const float available = ImGui::GetContentRegionAvail().y;
+  const float keyHeight = S(30.0f);
+  float height = available - keyHeight - S(30.0f) * (float)(shownCount < 3 ? shownCount : 3) - S(8.0f);
+  if (height < available * 0.6f) {
+    height = available - S(4.0f);
+  }
+  height = height < S(110.0f) ? S(110.0f) : height;
+  const ImVec2 viewMax(origin.x + width, origin.y + height);
+  if (!view.zoomed || view.zoom <= 0.0f) {
+    // Fitted to the map: a room big, a route whole as far as that stays readable
+    const float areaWidth = (float)(map->areaX1 - map->areaX0 + 3), areaHeight = (float)(map->areaZ1 - map->areaZ0 + 3);
+    const float fit = std::min(width / areaWidth, height / areaHeight) / S(1.0f);
+    view.zoom = std::clamp(fit, 10.0f, 26.0f);
+  }
+  view.viewMin = origin;
+  view.viewMax = viewMax;
+  ImGui::SetNextItemAllowOverlap(); // the zoom buttons go over it
+  ImGui::InvisibleButton("mapview", ImVec2(width, height));
+  const bool hovered = ImGui::IsItemHovered();
+  ImGuiIO &io = ImGui::GetIO();
+  float zoom = S(view.zoom);
+
+  // Drag: look around; tap: pick the item there
+  if (ImGui::IsItemActivated()) {
+    sMapDragging = true;
+  }
+  if (!io.MouseDown[0]) {
+    sMapDragging = false;
+  }
+  if (ImGui::IsItemActive() && ImGui::IsMouseDragging(0, S(6.0f))) {
+    view.centerX -= io.MouseDelta.x / zoom;
+    view.centerZ -= io.MouseDelta.y / zoom;
+    view.follow = false;
+  }
+  if (hovered && io.MouseWheel != 0.0f) {
+    view.zoom = std::clamp(view.zoom * (io.MouseWheel > 0 ? 1.25f : 0.8f), 4.0f, 48.0f);
+    view.zoomed = true;
+    zoom = S(view.zoom);
+  }
+  if (view.follow) {
+    view.centerX = map->playerX + 0.5f;
+    view.centerZ = map->playerZ + 0.5f;
+  }
+  view.centerX = std::clamp(view.centerX, 0.0f, (float)map->width);
+  view.centerZ = std::clamp(view.centerZ, 0.0f, (float)map->height);
+
+  const ImVec2 middle((origin.x + viewMax.x) * 0.5f, (origin.y + viewMax.y) * 0.5f);
+  auto toScreen = [&](float tx, float tz) {
+    return ImVec2(middle.x + (tx - view.centerX) * zoom, middle.y + (tz - view.centerZ) * zoom);
+  };
+
+  if (ImGui::IsItemDeactivated() && !ImGui::IsMouseDragging(0, S(6.0f)) && !sDragging) {
+    // A tap: the nearest item within reach
+    int best = -1;
+    float bestDistance = std::max(zoom * 0.9f, S(22.0f));
+    for (int k = 0; k < shownCount; k++) {
+      const GearMapItem &item = map->items[shown[k]];
+      const ImVec2 at = toScreen(item.x + 0.5f, item.z + 0.5f);
+      const float distance = std::hypot(at.x - io.MousePos.x, at.y - io.MousePos.y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = shown[k];
+      }
+    }
+    view.selected = best;
+  }
+
+  draw->PushClipRect(origin, viewMax, true);
+  draw->AddRectFilled(origin, viewMax, kMapBackground, S(10.0f));
+  if (view.texture != 0) {
+    draw->AddImage((ImTextureID)(intptr_t)view.texture, toScreen(0.0f, 0.0f), toScreen((float)map->width, (float)map->height));
+  }
+  // Warps
+  for (int i = 0; i < map->warpCount; i++) {
+    const ImVec2 a = toScreen(map->warps[i][0] + 0.15f, map->warps[i][1] + 0.15f);
+    const ImVec2 b = toScreen(map->warps[i][0] + 0.85f, map->warps[i][1] + 0.85f);
+    draw->AddRect(a, b, IM_COL32(250, 160, 46, 255), zoom * 0.15f, 0, std::max(S(1.5f), zoom * 0.1f));
+  }
+  // Items
+  const float itemRadius = std::max(zoom * 0.36f, S(6.0f));
+  for (int k = 0; k < shownCount; k++) {
+    const GearMapItem &item = map->items[shown[k]];
+    const ImVec2 c = toScreen(item.x + 0.5f, item.z + 0.5f);
+    if (shown[k] == view.selected) {
+      const float pulse = 0.5f + 0.5f * std::sin((float)ImGui::GetTime() * 6.0f);
+      draw->AddCircle(c, itemRadius * (1.6f + 0.25f * pulse), IM_COL32(255, 255, 255, 230), 0, S(2.5f));
+    }
+    if (item.hidden) {
+      HiddenItemMark(draw, c, itemRadius * 1.15f);
+    } else {
+      PokeBall(draw, c, itemRadius);
+    }
+  }
+  // The player
+  PlayerMark(draw, toScreen(map->playerX + 0.5f, map->playerZ + 0.5f), std::max(zoom * 0.34f, S(6.5f)), map->playerDir);
+  // The picked item's name over the map
+  if (view.selected >= 0) {
+    const GearMapItem &item = map->items[view.selected];
+    char label[96];
+    if (!guide) {
+      snprintf(label, sizeof(label), "An item");
+    } else if (item.quantity > 1) {
+      snprintf(label, sizeof(label), "%s x%d%s", Gear_ItemName(item.item), item.quantity, item.hidden ? " (hidden)" : "");
+    } else {
+      snprintf(label, sizeof(label), "%s%s", Gear_ItemName(item.item), item.hidden ? " (hidden)" : "");
+    }
+    const ImVec2 c = toScreen(item.x + 0.5f, item.z + 0.5f);
+    const ImVec2 textSize = TextSize(sBold, S(17.0f), label);
+    ImVec2 box(c.x - textSize.x * 0.5f - S(8.0f), c.y - itemRadius * 2.0f - textSize.y - S(10.0f));
+    box.x = std::clamp(box.x, origin.x + S(4.0f), viewMax.x - textSize.x - S(20.0f));
+    box.y = std::max(box.y, origin.y + S(4.0f));
+    draw->AddRectFilled(box, ImVec2(box.x + textSize.x + S(16.0f), box.y + textSize.y + S(8.0f)), IM_COL32(20, 26, 36, 235),
+                        S(8.0f));
+    TextAt(draw, sBold, S(17.0f), ImVec2(box.x + S(8.0f), box.y + S(4.0f)), item.hidden ? kWarn : kText, label);
+  }
+  draw->PopClipRect();
+  draw->AddRect(origin, viewMax, kPanel, S(10.0f), 0, S(2.0f));
+
+  // Zoom and follow: round buttons over the map's corner
+  const float buttonSize = S(40.0f);
+  // Stacked down the right side, or in a row along the top when the map is short
+  const bool buttonsInRow = height < buttonSize * 3.0f + S(48.0f);
+  float buttonY = origin.y + S(8.0f);
+  float buttonX = viewMax.x - buttonSize - S(8.0f);
+  auto mapButton = [&](const char *id, const char *label, bool on) {
+    ImGui::SetCursorScreenPos(ImVec2(buttonX, buttonY));
+    const bool pressed = Tap(id, ImVec2(buttonSize, buttonSize));
+    const ImVec2 center(buttonX + buttonSize * 0.5f, buttonY + buttonSize * 0.5f);
+    draw->AddCircleFilled(center, buttonSize * 0.5f, on ? kAccent : (ImGui::IsItemActive() ? kPanelPressed : IM_COL32(38, 46, 60, 230)));
+    draw->AddCircle(center, buttonSize * 0.5f, IM_COL32(14, 18, 24, 255), 0, S(1.5f));
+    const ImVec2 size = TextSize(sBold, S(20.0f), label);
+    TextAt(draw, sBold, S(20.0f), ImVec2(center.x - size.x * 0.5f, center.y - size.y * 0.5f), on ? IM_COL32(16, 24, 34, 255) : kText,
+           label);
+    if (buttonsInRow) {
+      buttonX -= buttonSize + S(6.0f);
+    } else {
+      buttonY += buttonSize + S(6.0f);
+    }
+    return pressed;
+  };
+  if (mapButton("zoomin", "+", false)) {
+    view.zoom = std::min(view.zoom * 1.25f, 48.0f);
+    view.zoomed = true;
+  }
+  if (mapButton("zoomout", "-", false)) {
+    view.zoom = std::max(view.zoom * 0.8f, 4.0f);
+    view.zoomed = true;
+  }
+  // Follow: a target mark
+  {
+    const float followX = buttonX, followY = buttonY;
+    if (mapButton("follow", "", view.follow)) {
+      view.follow = true;
+      view.selected = -1;
+    }
+    const ImVec2 center(followX + buttonSize * 0.5f, followY + buttonSize * 0.5f);
+    const ImU32 ink = view.follow ? IM_COL32(16, 24, 34, 255) : kText;
+    draw->AddCircle(center, buttonSize * 0.22f, ink, 0, S(2.0f));
+    draw->AddCircleFilled(center, buttonSize * 0.08f, ink);
+    for (int i = 0; i < 4; i++) {
+      const float angle = i * 3.14159265f / 2.0f;
+      draw->AddLine(ImVec2(center.x + std::cos(angle) * buttonSize * 0.26f, center.y + std::sin(angle) * buttonSize * 0.26f),
+                    ImVec2(center.x + std::cos(angle) * buttonSize * 0.36f, center.y + std::sin(angle) * buttonSize * 0.36f), ink,
+                    S(2.0f));
+    }
+  }
+  ImGui::SetCursorScreenPos(ImVec2(origin.x, viewMax.y + S(4.0f)));
+
+  // What the marks are
+  {
+    const ImVec2 at = ImGui::GetCursorScreenPos();
+    const float y = at.y + keyHeight * 0.5f;
+    float x = at.x + S(4.0f);
+    PlayerMark(draw, ImVec2(x + S(7.0f), y), S(5.5f), DIR_EAST);
+    TextAt(draw, sRegular, S(16.0f), ImVec2(x + S(20.0f), y - S(9.0f)), kTextDim, "you");
+    x += S(60.0f);
+    PokeBall(draw, ImVec2(x + S(7.0f), y), S(7.0f));
+    TextAt(draw, sRegular, S(16.0f), ImVec2(x + S(20.0f), y - S(9.0f)), kTextDim, "item");
+    x += S(64.0f);
+    if (guide) {
+      HiddenItemMark(draw, ImVec2(x + S(7.0f), y), S(8.0f));
+      TextAt(draw, sRegular, S(16.0f), ImVec2(x + S(20.0f), y - S(9.0f)), kTextDim, "hidden item");
+      x += S(116.0f);
+    }
+    draw->AddRect(ImVec2(x + S(1.0f), y - S(6.0f)), ImVec2(x + S(13.0f), y + S(6.0f)), IM_COL32(250, 160, 46, 255), S(2.0f), 0,
+                  S(1.5f));
+    TextAt(draw, sRegular, S(16.0f), ImVec2(x + S(20.0f), y - S(9.0f)), kTextDim, "way out");
+    ImGui::Dummy(ImVec2(width, keyHeight));
+  }
+
+  // The items, nearest first: tap one to see it on the map
+  std::sort(shown, shown + shownCount, [&](int a, int b) {
+    const int da = std::abs(map->items[a].x - map->playerX) + std::abs(map->items[a].z - map->playerZ);
+    const int db = std::abs(map->items[b].x - map->playerX) + std::abs(map->items[b].z - map->playerZ);
+    return da < db;
+  });
+  for (int k = 0; k < shownCount; k++) {
+    const GearMapItem &item = map->items[shown[k]];
+    const ImVec2 at = ImGui::GetCursorScreenPos();
+    const float rowHeight = S(30.0f);
+    ImGui::PushID(k);
+    if (Tap("item", ImVec2(width, rowHeight))) {
+      view.selected = shown[k];
+      view.follow = false;
+      view.centerX = item.x + 0.5f;
+      view.centerZ = item.z + 0.5f;
+    }
+    ImGui::PopID();
+    if (shown[k] == view.selected) {
+      draw->AddRectFilled(at, ImVec2(at.x + width, at.y + rowHeight), kPanel, S(8.0f));
+    }
+    const ImVec2 icon(at.x + S(14.0f), at.y + rowHeight * 0.5f);
+    if (item.hidden) {
+      HiddenItemMark(draw, icon, S(9.0f));
+    } else {
+      PokeBall(draw, icon, S(8.0f));
+    }
+    char name[64];
+    if (!guide) {
+      snprintf(name, sizeof(name), "An item");
+    } else if (item.quantity > 1) {
+      snprintf(name, sizeof(name), "%s x%d", Gear_ItemName(item.item), item.quantity);
+    } else {
+      snprintf(name, sizeof(name), "%s", Gear_ItemName(item.item));
+    }
+    TextAt(draw, sBold, S(17.0f), ImVec2(at.x + S(32.0f), at.y + S(5.0f)), item.hidden ? kWarn : kText, name);
+    char where[48];
+    MapDirections(item.x - map->playerX, item.z - map->playerZ, where, sizeof(where));
+    const ImVec2 whereSize = TextSize(sRegular, S(16.0f), where);
+    TextAt(draw, sRegular, S(16.0f), ImVec2(at.x + width - whereSize.x - S(8.0f), at.y + S(6.0f)), kTextDim, where);
+  }
+  if (!guide && map->itemCount > shownCount) {
+    ImGui::TextDisabled("Hidden items (and what's in the balls) show with Discovery on Guide, in the cog tab.");
+  }
+}
+
 // --- trainer -----------------------------------------------------------------------------
 
 // --- PC ------------------------------------------------------------------------------------
@@ -3323,8 +3807,8 @@ void DrawSettings() {
 
   static const char *const names[3] = {"Vanilla", "Guide", "Everything"};
   static const char *const help[3] = {
-      "Only what the game tells you: no encounter guide or hidden values.",
-      "Wild encounters here; species you haven't seen stay hidden.",
+      "Only what the game tells you: no encounter guide, hidden items or hidden values.",
+      "Wild encounters here and the map's hidden items; species you haven't seen stay hidden.",
       "Everything, including unseen species and IVs/EVs.",
   };
   int discovery = Discovery();
@@ -3431,6 +3915,9 @@ extern "C" void SIM_Prj_CompanionDraw(const SIM_CompanionFrame *frame) {
   if (sApp == APP_BATTLE && !sInBattle) {
     sApp = APP_PARTY;
   }
+  if (sApp == APP_MAP && sInBattle) {
+    sApp = APP_BATTLE;
+  }
   if (sApp == APP_POKETCH && !sInBattle && Gear_PoketchState() == GEAR_POKETCH_NOT_OBTAINED) {
     SelectApp(APP_PARTY);
   }
@@ -3443,6 +3930,9 @@ extern "C" void SIM_Prj_CompanionDraw(const SIM_CompanionFrame *frame) {
     break;
   case APP_AREA:
     DrawArea();
+    break;
+  case APP_MAP:
+    DrawMap();
     break;
   case APP_POKETCH:
     DrawPoketch(frame);

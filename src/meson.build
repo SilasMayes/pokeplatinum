@@ -1046,6 +1046,7 @@ pokeplatinum_c += files(
     'port/gear_berries.c',
     'port/gear_daycare.c',
     'port/gear_dex.c',
+    'port/gear_map.c',
     'port/gear_pc.c',
     'port/gui_saves.cpp',
     'port/gui_settings.cpp',
