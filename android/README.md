@@ -39,9 +39,10 @@ game waits meanwhile). Everything is big enough to tap, scrolls with a finger, a
 with the controller too: D-pad to move, A to choose, B to go back, L/R for the previous /
 next page.
 
-* **Games**: reset to the title screen, switch games, add one (Renegade Platinum),
-  choose at launch.
-* **Saves**: save slots, import / export, autosave, save now.
+* **Games**: reset to the title screen, switch games, add one (Renegade Platinum, or a
+  randomized game), choose at launch, save a randomized game's log.
+* **Saves**: save slots, import / export, autosave, save now, sync with your other
+  devices.
 * **Save editor**: see below.
 * **Gameplay**: instant text and HP/EXP bars, field moves without HMs, *Use another
   Repel?* (on by default: when a Repel wears off and the bag has another, the game asks,
@@ -54,6 +55,7 @@ next page.
   widescreen (experimental), texture packs, vsync.
 * **GBA slot**: a Ruby, Sapphire, Emerald, FireRed or LeafGreen save in the DS's GBA
   slot (see below).
+* **Link play**: host or join another device for trades and battles (see below).
 * **Sound**, **Controls** (fast-forward speed and button; remap buttons: tap a control,
   press the button).
 * **Gear**, **Cheats** (see below).
@@ -100,6 +102,34 @@ every Pokemon obeying, the Fairy type and its type chart, the Fairy move colours
 Pokedex icon, and the Pokemon in Professor Rowan's introduction. The SpeedUp patch's
 code changes (instant text and HP bars) are not carried over.
 
+## Randomizer
+
+*Settings > Games > Add a game*: after choosing the ROM (and patches, Renegade Platinum
+too), turn on **Randomize it**. A seed (type one with the keypad, or *New seed*) and
+these options make the game; the same seed and options make the same game on any device:
+
+* **Wild Pokemon**: each area's Pokemon become others, one for one within the area
+  (grass, swarms, day/night, Poke Radar, dual-slot, surfing and fishing), so how often
+  each shows up stays the same.
+* **Trainers' Pokemon**: levels stay; trainers who chose moves get the new Pokemon's
+  latest level-up moves.
+* **Starters**: three Pokemon that evolve twice in place of Turtwig, Chimchar and Piplup
+  (the starter choice names them); your rival and Dawn/Lucas take the other two the same
+  way they would have.
+* **Similar strength** (on): each Pokemon becomes one with about the same base stat
+  total (within 10%, widened until there's a choice).
+* **Keep a type** (off): each Pokemon becomes one sharing a type with it, so gym leaders
+  keep their theme; the starters stay Grass, Fire and Water.
+* **No legendaries** (on).
+
+It changes the new game's own data files (`src/port/randomizer.c`), so the game, the
+Gear's *Area* tab and its Pokedex lookup simply show the randomized Pokemon. Everything
+comes from the game's files, so Renegade Platinum's changes (stats, types, learnsets) are
+used. The game is named with its seed ("Pokemon Platinum (randomized 12345)") and
+*Settings > Games > Save the randomizer's log* saves what became what (spoilers). Gifts
+and legendary encounters set by events, the Great Marsh's daily Pokemon, Honey trees and
+Trophy Garden aren't randomized.
+
 ## Saves
 
 * **Save slots:** four independent games. On the main menu, **L/R** switch slots (the
@@ -115,6 +145,33 @@ code changes (instant text and HP bars) are not carried over.
   nothing else going on, and the game has been saved normally at least once (it never
   overwrites a different game). A small "Autosaved" notice appears in the corner.
   Its settings and *Save now* are on the same page.
+
+## Save sync between devices
+
+*Settings > Saves > Sync with your other devices* keeps the save slots the same on the
+Thor and a computer (or two handhelds), through a folder that something else copies
+between them: Syncthing, a network share, a NAS on your homelab, a cloud drive's synced
+folder. Choose the folder on each device and turn on *Sync saves*.
+
+* In the folder each game gets a folder of its own (its name, e.g. `Renegade Platinum`),
+  with each slot as `slotN.sav` (a plain 512 KB `.sav` emulators load) and `slotN.txt`
+  (which device saved it, when, the trainer, play time, badges and the save's hash). The
+  Nuzlocke and shiny hunt records go along.
+* After every save (yours or autosave) the slot is copied there. A save made on the other
+  device is brought in when the app starts, before the save is loaded, or on the main
+  menu, which then reloads the slot. During a game it says so in the corner: reset to the
+  title to load it.
+* Each device remembers the last save it synced, so it knows which side changed. Saved
+  on both since then is a conflict: nothing is overwritten, the slot says *Saved on two
+  devices* and *Settings > Saves* offers *Use AYN Thor's save* or *Keep this device's
+  save*. A replaced save is always kept as `.bak`.
+* Files are written next to their target and renamed over it, and a save is only taken
+  once the folder's copy matches the hash in its description (sync programs copy one
+  file at a time).
+* **Android:** the folder picker's choice is used as a path, which needs *All files
+  access*; the page has a button that opens the system screen to turn it on (Android 10
+  asks for the storage permission instead). The folder must be on the device's storage
+  (internal or SD card), e.g. the one Syncthing syncs.
 
 ## Screens
 
@@ -279,6 +336,26 @@ textures, fixes, recolours.
   folders, or use **Add a pack** to copy a pack's folder in (its PNGs, with their
   folders). **Look again** picks up files added by hand.
 * Menus, text and other 2D graphics aren't textures, so they stay as they are.
+
+## Link play (trades and battles between two devices)
+
+*Settings > Link play* links two devices running the app the way two DSs link up: one
+taps *Host*, the other picks it from the list of devices hosting on the same Wi-Fi (or
+types its address, e.g. on another network through a VPN such as Tailscale). Then in the
+game, go upstairs in any Pokemon Center: the middle counter's **Union Room** (talk to the
+other player there to trade, battle or chat) and the right-hand counter's **Colosseum**
+(battles) work as on the DS.
+
+The DS's local wireless is relayed over the network by libntr (enet, UDP port 2009; hosts
+are found through a broadcast on port 2010). While linked the overworld runs at the DS's
+own 30 Hz logic, which both sides' wireless code counts in. The command line's
+`--net-host` / `--net-client` still work on desktop.
+
+Tested between two desktop instances: in the Union Room, showing trainer cards, a trade
+(both games saved the swapped Pokemon) and a battle all went through. It hasn't been tried
+on two Android devices yet, so treat it as a first version there. Both devices need the
+same game (a Renegade Platinum save won't trade with a plain Platinum one), and leaving the
+app while linked drops the link, as closing a DS would.
 
 ## Cheats
 
