@@ -7,3 +7,7 @@ Code only: no game files. On first launch each build asks for your own dump of P
 Platinum (USA, CPUE01) and extracts it.
 
 This branch has no history in common with the source branches; it only holds the build files.
+
+## Builds
+
+- [Build 28](build28/) (2026-10-29): `02606bee`. Windows, Linux, Android.
