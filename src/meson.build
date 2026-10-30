@@ -1033,7 +1033,6 @@ pokeplatinum_c += files(
     'port/soft_reset.c',
     'port/speed_up.c',
     'port/hm_free.c',
-    'port/shiny_hunt.c',
     'port/nuzlocke.c',
     'port/widescreen.c',
     'port/gba_slot.c',

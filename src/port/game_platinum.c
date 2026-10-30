@@ -20,7 +20,6 @@
 #include "port/debug_field.h"
 #include "port/nuzlocke.h"
 #include "port/rom_patches.h"
-#include "port/shiny_hunt.h"
 #include "port/sim_config_prj.h"
 
 #include "charcode_convert.h"
@@ -321,5 +320,4 @@ void PortGame_OnSlotSidecarsReplaced(int slot)
 {
     (void)slot;
     Nuzlocke_ForgetLoaded();
-    ShinyHunt_ForgetLoaded();
 }
