@@ -4,6 +4,7 @@
 #include "port/port_game.h"
 
 #include <nitro.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "constants/charcode.h"
@@ -16,7 +17,6 @@
 #include "overlay005/save_info_window.h"
 #include "port/debug_field.h"
 #include "port/save_sync.h"
-#include "port/save_version.h"
 #include "port/sim_config_prj.h"
 
 #include "charcode_convert.h"
@@ -183,6 +183,58 @@ BOOL PortGame_Field_Save(void)
     return fieldSystem != NULL && FieldSystem_Save(fieldSystem);
 }
 
+// --- Versions (Renegade Platinum's Complete and Classic; see port/save_version.h)
+
+// The files a version may differ in (libntr keeps the versions' copies of them)
+static const char *const sVersionFiles[] = {
+    "poketool/personal/pl_personal.narc",
+};
+
+int SIM_Prj_VersionFiles(const char *const **paths)
+{
+    *paths = sVersionFiles;
+    return (int)(sizeof(sVersionFiles) / sizeof(sVersionFiles[0]));
+}
+
+// Renegade Platinum: the game without a version patch is Complete, ClassicVersion makes Classic
+void SIM_Prj_VersionName(const char *patchName, char *name, int nameSize)
+{
+    if (patchName == NULL) {
+        snprintf(name, nameSize, "Complete");
+        return;
+    }
+    char lower[64];
+    snprintf(lower, sizeof(lower), "%s", patchName);
+    for (char *c = lower; *c != '\0'; c++) {
+        if (*c >= 'A' && *c <= 'Z') {
+            *c = (char)(*c - 'A' + 'a');
+        }
+    }
+    if (strstr(lower, "classic") != NULL) {
+        snprintf(name, nameSize, "Classic");
+        return;
+    }
+    // "SomethingVersion" -> "Something"
+    snprintf(name, nameSize, "%s", patchName);
+    size_t length = strlen(name);
+    if (length > 7 && strcmp(name + length - 7, "Version") == 0) {
+        name[length - 7] = '\0';
+    }
+}
+
+const char *PortGame_VersionDescription(const char *name)
+{
+    if (strcmp(name, "Complete") == 0) {
+        return "Renegade Platinum as Drayano made it: many Pokemon have new types, higher base stats and new "
+               "abilities.";
+    }
+    if (strcmp(name, "Classic") == 0) {
+        return "The official types and base stats, as in the newer games (Fairy included). Trainers, wild Pokemon, "
+               "moves and items are the same as Complete; a few abilities differ.";
+    }
+    return NULL;
+}
+
 // --- Save slot events for the port modules still here
 
 void PortGame_OnSlotBeforeLoad(int slot)
@@ -190,18 +242,7 @@ void PortGame_OnSlotBeforeLoad(int slot)
     SaveSync_BeforeLoad(slot);
 }
 
-void PortGame_OnSlotLoaded(int slot)
-{
-    SaveVersion_OnSlotLoaded(slot);
-}
-
 void PortGame_OnSlotSaved(int slot)
 {
-    SaveVersion_OnSaved(slot);
     SaveSync_OnSaved(slot);
-}
-
-void PortGame_OnSlotReplaced(int slot)
-{
-    SaveVersion_ForgetSlot(slot);
 }
