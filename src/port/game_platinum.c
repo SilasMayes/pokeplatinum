@@ -18,16 +18,19 @@
 #include "field/field_system.h"
 #include "overlay005/save_info_window.h"
 #include "port/debug_field.h"
-#include "port/nuzlocke.h"
+#include "port/gear_data.h"
 #include "port/rom_patches.h"
 #include "port/sim_config_prj.h"
+#include "savedata/save_table.h"
 
 #include "charcode_convert.h"
 #include "comm_manager.h"
 #include "field_task.h"
 #include "location.h"
+#include "map_header.h"
 #include "map_object.h"
 #include "party.h"
+#include "pc_boxes.h"
 #include "play_time.h"
 #include "player_avatar.h"
 #include "pokedex.h"
@@ -80,6 +83,19 @@ BOOL PortGame_Config_GetCheats(PortCheatsConfig *out)
     out->fastEggs = config->fastEggs;
     out->anyTM = config->anyTM;
     out->expShareAll = config->expShareAll;
+    return TRUE;
+}
+
+BOOL PortGame_Config_GetNuzlocke(PortNuzlockeConfig *out)
+{
+    const SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+    if (config == NULL) {
+        return FALSE;
+    }
+    out->enabled = config->nuzlocke;
+    out->dupes = config->nuzlockeDupes;
+    out->shiny = config->nuzlockeShiny;
+    out->toPC = config->nuzlockeToPC;
     return TRUE;
 }
 
@@ -282,6 +298,13 @@ void PortGame_Mon_GetInfo(Pokemon *mon, PortMonInfo *out)
     out->otID = Pokemon_GetValue(mon, MON_DATA_OT_ID, NULL);
 }
 
+void PortGame_Mon_GetName(Pokemon *mon, char *out, int outSize)
+{
+    charcode_t nickname[MON_NAME_LEN + 1];
+    Pokemon_GetValue(mon, MON_DATA_NICKNAME, nickname);
+    Gear_TextToAscii(nickname, MON_NAME_LEN + 1, out, outSize);
+}
+
 void PortGame_Mon_SetPersonality(Pokemon *mon, u32 personality)
 {
     Pokemon_PortSetPersonality(mon, personality);
@@ -299,6 +322,23 @@ u32 PortGame_BaseShinyOdds(void)
     return threshold > 0 ? 65536u / (u32)threshold : 8192u;
 }
 
+BOOL PortGame_Party_MoveToPC(Party *party, int index)
+{
+    SaveData *saveData = SaveData_Ptr();
+    if (saveData == NULL) {
+        return FALSE;
+    }
+    PCBoxes *pcBoxes = SaveData_GetPCBoxes(saveData);
+    int box = USE_CURRENT_BOX, slot = 0;
+    if (!PCBoxes_TryGetNextAvailableSpace(pcBoxes, &box, &slot)
+        || !PCBoxes_TryStoreBoxMonAt(pcBoxes, box, slot, Pokemon_GetBoxPokemon(Party_GetPokemonBySlotIndex(party, index)))) {
+        return FALSE;
+    }
+    Party_RemovePokemonBySlotIndex(party, index);
+    SaveData_SetFullSaveRequired();
+    return TRUE;
+}
+
 BOOL PortGame_PlayerTrainerID(u32 *out)
 {
     SaveData *saveData = SaveData_Ptr();
@@ -309,15 +349,31 @@ BOOL PortGame_PlayerTrainerID(u32 *out)
     return TRUE;
 }
 
+BOOL PortGame_Pokedex_HasCaught(u16 species)
+{
+    return Gear_SpeciesCaught(species);
+}
+
+u16 PortGame_Field_LocationName(void)
+{
+    FieldSystem *fieldSystem = DEBUG_GetFieldSystem();
+    if (fieldSystem == NULL || fieldSystem->location == NULL) {
+        return 0xFFFF;
+    }
+    return (u16)MapHeader_GetMapLabelTextID(fieldSystem->location->mapHeaderID);
+}
+
+BOOL PortGame_Battle_Captured(int resultMask)
+{
+    return (resultMask & 0x7) == BATTLE_RESULT_CAPTURED_MON;
+}
+
+BOOL PortGame_Battle_Lost(int resultMask)
+{
+    return (resultMask & BATTLE_RESULT_LOSE) != 0;
+}
+
 BOOL PortGame_Battle_IsWild(u32 battleType)
 {
     return (battleType & (BATTLE_TYPE_TRAINER | BATTLE_TYPE_LINK | BATTLE_TYPE_FRONTIER | BATTLE_TYPE_PAL_PARK | BATTLE_TYPE_CATCH_TUTORIAL)) == 0;
-}
-
-// --- Save slot events for the port modules still here
-
-void PortGame_OnSlotSidecarsReplaced(int slot)
-{
-    (void)slot;
-    Nuzlocke_ForgetLoaded();
 }
