@@ -22,6 +22,7 @@
 /subprojects/libntrsystem/
 /subprojects/libntrwifi/
 /subprojects/libntrdwc/
+/subprojects/port-common
 /subprojects/nitrogfx/
 /subprojects/libpng-*/
 /subprojects/zlib-*/

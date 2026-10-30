@@ -254,7 +254,7 @@ static void HandleFieldInput(FieldSystem *fieldSystem)
         PlayerAvatar_UpdatePlayerMoveState(fieldSystem->playerAvatar);
 #ifdef SDK_PORT
         // The player has control and nothing else is running: a safe moment to autosave
-        Autosave_FieldTick(fieldSystem);
+        Autosave_FieldTick();
 #endif
         FieldInput_Update(&fieldInput, fieldSystem, gSystem.pressedKeys, gSystem.heldKeys);
     }

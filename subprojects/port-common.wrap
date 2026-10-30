@@ -1,0 +1,10 @@
+[wrap-git]
+# The port layer shared with the HeartGold/SoulSilver port (game adapter: src/port/game_platinum.c).
+# Pinned: bump together with the Platinum side of each module move
+url = https://github.com/SilasMayes/port-common.git
+revision = 5ee2358374dc2dcd06872a8f49022c906d1fb6a7
+depth = 1
+directory = port-common
+
+[provide]
+dependency_names = port_common

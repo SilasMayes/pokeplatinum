@@ -222,6 +222,13 @@ nitrodwc_dep = dependency('NitroDWC',
 )
 
 libvct_dep = dependency('libvct')
+
+if (build_target != 'arm')
+# The port layer shared with the HeartGold/SoulSilver port (SilasMayes/port-common).
+# src/port/game_platinum.c implements its game adapter, port/port_game.h.
+port_common_dep = subproject('port-common').get_variable('port_common_dep')
+endif
+
 if (build_target == 'arm')
 libsyscall_dep = dependency('libsyscall')
 endif
@@ -454,6 +461,7 @@ main = executable('main',
         nitrowifi_dep,
         nitrodwc_dep,
         libvct_dep,
+        port_common_dep,
     ],
     link_with: [
         libspl,
@@ -503,6 +511,7 @@ main = executable('main',
         nitrowifi_dep,
         nitrodwc_dep,
         libvct_dep,
+        port_common_dep,
         ws2_32_dep,
     ],
     link_with: [
@@ -548,6 +557,7 @@ main = executable('main',
         nitrowifi_dep,
         nitrodwc_dep,
         libvct_dep,
+        port_common_dep,
     ],
     link_with: [
         libspl,
@@ -595,6 +605,7 @@ main = executable('main',
         nitrowifi_dep,
         nitrodwc_dep,
         libvct_dep,
+        port_common_dep,
     ],
     link_with: [
         libspl,

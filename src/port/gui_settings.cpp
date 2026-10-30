@@ -438,13 +438,12 @@ void DrawSaves()
     Note("Autosave only saves where the menu's SAVE would, while you're standing still, and after you've saved this "
          "game yourself once.");
 
-    FieldSystem *fieldSystem = Autosave_GetFieldSystem();
     const char *reason = nullptr;
-    const bool canSave = Autosave_CanSaveNow(fieldSystem, &reason) != FALSE;
+    const bool canSave = Autosave_CanSaveNow(&reason) != FALSE;
     std::string help = canSave ? std::string("Saves the game now, like the menu's SAVE.")
                                : std::string("Not right now: ") + (reason != nullptr ? reason : "the game can't save here");
     if (Button("Save now", help.c_str(), false, canSave)) {
-        if (Autosave_SaveNow(fieldSystem, "Saved")) {
+        if (Autosave_SaveNow("Saved")) {
             SetSavesStatus("Saved.", false);
         } else {
             SetSavesStatus("The game could not be saved.", true);
