@@ -85,6 +85,9 @@ jobs:
       # A fixed download link for the newest build, so it can be grabbed straight from
       # the device's browser without signing in to GitHub or unzipping an artifact.
       - name: Publish latest build
+        # A manual run on another branch (e.g. checking a port-common move) builds and
+        # uploads the APK artifact but leaves the thor-android-latest release alone
+        if: github.ref == 'refs/heads/thor-android'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
