@@ -16,7 +16,8 @@
 #include "field/field_system.h"
 #include "overlay005/save_info_window.h"
 #include "port/debug_field.h"
-#include "port/save_sync.h"
+#include "port/nuzlocke.h"
+#include "port/shiny_hunt.h"
 #include "port/sim_config_prj.h"
 
 #include "charcode_convert.h"
@@ -237,12 +238,9 @@ const char *PortGame_VersionDescription(const char *name)
 
 // --- Save slot events for the port modules still here
 
-void PortGame_OnSlotBeforeLoad(int slot)
+void PortGame_OnSlotSidecarsReplaced(int slot)
 {
-    SaveSync_BeforeLoad(slot);
-}
-
-void PortGame_OnSlotSaved(int slot)
-{
-    SaveSync_OnSaved(slot);
+    (void)slot;
+    Nuzlocke_ForgetLoaded();
+    ShinyHunt_ForgetLoaded();
 }

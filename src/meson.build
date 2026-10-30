@@ -1029,7 +1029,6 @@ pokeplatinum_c += files(
     'port/frame_rate.c',
     'port/game_platinum.c',
     'port/rom_patches.c',
-    'port/save_sync.c',
     'port/randomizer.c',
     'port/soft_reset.c',
     'port/speed_up.c',
