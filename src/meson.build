@@ -1036,7 +1036,6 @@ pokeplatinum_c += files(
     'port/shiny_hunt.c',
     'port/nuzlocke.c',
     'port/widescreen.c',
-    'port/cheats.c',
     'port/gba_slot.c',
     'port/repel_prompt.c',
     'port/gear_sprites.c',

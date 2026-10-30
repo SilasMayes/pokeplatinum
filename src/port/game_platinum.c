@@ -7,9 +7,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "constants/battle.h"
 #include "constants/charcode.h"
 #include "constants/field/map_load.h"
 #include "constants/player_avatar.h"
+#include "constants/species.h"
 #include "constants/string.h"
 #include "generated/map_headers.h"
 
@@ -17,6 +19,7 @@
 #include "overlay005/save_info_window.h"
 #include "port/debug_field.h"
 #include "port/nuzlocke.h"
+#include "port/rom_patches.h"
 #include "port/shiny_hunt.h"
 #include "port/sim_config_prj.h"
 
@@ -25,9 +28,11 @@
 #include "field_task.h"
 #include "location.h"
 #include "map_object.h"
+#include "party.h"
 #include "play_time.h"
 #include "player_avatar.h"
 #include "pokedex.h"
+#include "pokemon.h"
 #include "save_player.h"
 #include "savedata.h"
 #include "system_flags.h"
@@ -60,6 +65,23 @@ void PortGame_Config_SetSaveSlot(int slot)
     SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
     config->saveSlot = slot;
     SIM_Config_prj_SaveConfigFile(config);
+}
+
+BOOL PortGame_Config_GetCheats(PortCheatsConfig *out)
+{
+    const SIM_Config_prj_type *config = SIM_Config_prj_GetConfig();
+    if (config == NULL) {
+        return FALSE;
+    }
+    out->shinyOdds = config->shinyOdds;
+    out->expPercent = config->expPercent;
+    out->alwaysCatch = config->alwaysCatch;
+    out->infinitePP = config->infinitePP;
+    out->alwaysEscape = config->alwaysEscape;
+    out->fastEggs = config->fastEggs;
+    out->anyTM = config->anyTM;
+    out->expShareAll = config->expShareAll;
+    return TRUE;
 }
 
 BOOL PortGame_Config_GetAutosave(PortAutosaveConfig *out)
@@ -234,6 +256,63 @@ const char *PortGame_VersionDescription(const char *name)
                "moves and items are the same as Complete; a few abilities differ.";
     }
     return NULL;
+}
+
+// --- Pokémon
+
+_Static_assert(PORT_SPECIES_MAX == MAX_SPECIES, "port-common's species count is Platinum's");
+
+int PortGame_Party_Count(Party *party)
+{
+    return Party_GetCurrentCount(party);
+}
+
+Pokemon *PortGame_Party_Mon(Party *party, int index)
+{
+    return Party_GetPokemonBySlotIndex(party, index);
+}
+
+void PortGame_Mon_GetInfo(Pokemon *mon, PortMonInfo *out)
+{
+    out->species = (u16)Pokemon_GetValue(mon, MON_DATA_SPECIES, NULL);
+    out->level = (u8)Pokemon_GetValue(mon, MON_DATA_LEVEL, NULL);
+    out->isEgg = Pokemon_GetValue(mon, MON_DATA_IS_EGG, NULL) ? TRUE : FALSE;
+    out->shiny = Pokemon_IsShiny(mon) ? TRUE : FALSE;
+    out->hp = Pokemon_GetValue(mon, MON_DATA_HP, NULL);
+    out->personality = Pokemon_GetValue(mon, MON_DATA_PERSONALITY, NULL);
+    out->otID = Pokemon_GetValue(mon, MON_DATA_OT_ID, NULL);
+}
+
+void PortGame_Mon_SetPersonality(Pokemon *mon, u32 personality)
+{
+    Pokemon_PortSetPersonality(mon, personality);
+}
+
+BOOL PortGame_IsPersonalityShiny(u32 otID, u32 personality)
+{
+    return Pokemon_IsPersonalityShiny(otID, personality) ? TRUE : FALSE;
+}
+
+// Shiny when the shiny value is below the threshold (8 of 65536 in vanilla)
+u32 PortGame_BaseShinyOdds(void)
+{
+    const int threshold = RomPatches_Info()->shinyThreshold;
+    return threshold > 0 ? 65536u / (u32)threshold : 8192u;
+}
+
+BOOL PortGame_PlayerTrainerID(u32 *out)
+{
+    SaveData *saveData = SaveData_Ptr();
+    if (saveData == NULL) {
+        return FALSE;
+    }
+    *out = TrainerInfo_ID(SaveData_GetTrainerInfo(saveData));
+    return TRUE;
+}
+
+BOOL PortGame_Battle_IsWild(u32 battleType)
+{
+    return (battleType & (BATTLE_TYPE_TRAINER | BATTLE_TYPE_LINK | BATTLE_TYPE_FRONTIER | BATTLE_TYPE_PAL_PARK | BATTLE_TYPE_CATCH_TUTORIAL)) == 0;
 }
 
 // --- Save slot events for the port modules still here
