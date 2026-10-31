@@ -4,6 +4,8 @@ Everything the Thor build adds beyond the DS game, except the Gear, saves, link 
 
 ## More than one game (Renegade Platinum)
 
+![The game picker listing Pokemon Platinum, Renegade Platinum with its Complete and Classic versions, and a randomized copy of Renegade Platinum Classic](images/game-picker.png)
+
 The app can hold several games side by side, each with its own extracted ROM and its
 own saves (the settings are shared). Switch between them in *Settings > Games* (tap a
 game twice); the app saves first when the game allows it and restarts into the other

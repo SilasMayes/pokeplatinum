@@ -4,6 +4,8 @@ Trades and battles between two devices.
 
 ## Link play (trades and battles between two devices)
 
+![Two players' top screens side by side during the same link battle, a Shinx against a Starly, each seen from its own side](images/link-play-battle.png)
+
 *Settings > Link play* links two devices running the app the way two DSs link up: one
 taps *Host*, the other picks it from the list of devices hosting on the same Wi-Fi (or
 types its address, e.g. on another network through a VPN such as Tailscale). Then in the

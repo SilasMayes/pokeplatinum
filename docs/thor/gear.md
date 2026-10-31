@@ -4,6 +4,12 @@ The companion screen on the Thor's lower panel.
 
 ## Gear (lower-panel companion)
 
+<p>
+  <img src="images/gear-map.png" width="32%" alt="A beach on Route 213 on the top screen, with an item ball in view; below it, the Gear's map of the route with its item balls and hidden items">
+  <img src="images/gear-battle.png" width="32%" alt="A wild Shellos battle on the top screen; below it, the Gear's battle menu with each move's type match-up and damage, and who moves first">
+  <img src="images/gear-encounters.png" width="32%" alt="Route 209 on the top screen; below it, the Gear's Area tab with the route's wild Pokemon, their levels and encounter rates">
+</p>
+
 The Thor's lower panel is taller than a DS screen, so the DS touch screen sits at its
 top and the **Gear** fills the space below it, in the spirit of HeartGold's
 Pokegear and Kanto Gear:

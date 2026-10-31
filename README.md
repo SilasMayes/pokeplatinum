@@ -10,6 +10,30 @@ It is built on [cybervisi0n's PC port](https://github.com/cybervisi0n/pokeplatin
 [pret decompilation](https://github.com/pret/pokeplatinum). This is an independent fork: cybervisi0n and pret
 aren't involved in it, so please bring questions and bug reports here, not to them.
 
+<table>
+  <tr>
+    <td width="33%" colspan="2" valign="top"><img src="docs/thor/images/gear-map.png" alt="A beach on Route 213 on the top screen, with an item ball in view; below it, the Gear's map of the route showing sand, sea, grass, the item balls and the hidden items, and a list that says a hidden Pearl is 5 tiles west"></td>
+    <td width="33%" colspan="2" valign="top"><img src="docs/thor/images/gear-battle.png" alt="A wild Shellos battle on the top screen; below it, the Gear's battle menu with each move's type match-up and damage as a share of Shellos's HP, and a note that the opponent moves first"></td>
+    <td width="33%" colspan="2" valign="top"><img src="docs/thor/images/gear-encounters.png" alt="Route 209 on the top screen; below it, the Gear's Area tab listing the route's wild Pokemon when walking and surfing, with levels and encounter rates, and a shiny-hunt counter"></td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">The map: item balls, and the hidden items you can't see</td>
+    <td colspan="2" valign="top">Battles: damage ranges, KO marks and who moves first</td>
+    <td colspan="2" valign="top">The wild Pokémon here, by method and time of day</td>
+  </tr>
+  <tr>
+    <td colspan="3" valign="top"><img src="docs/thor/images/link-play-battle.png" alt="Two players' top screens side by side during the same link battle, a Shinx against a Starly, each seen from its own side"></td>
+    <td colspan="3" valign="top"><img src="docs/thor/images/game-picker.png" alt="The game picker listing Pokemon Platinum, Renegade Platinum with its Complete and Classic versions, and a randomized copy of Renegade Platinum Classic"></td>
+  </tr>
+  <tr>
+    <td colspan="3" valign="top">Link play: a battle between two devices</td>
+    <td colspan="3" valign="top">Renegade Platinum and randomized games next to the original</td>
+  </tr>
+</table>
+
+<sub>Screenshots from the PC build, laid out like the Thor's two screens: the game on the main panel, the Gear on
+the lower one.</sub>
+
 ## You need your own copy of the game
 
 This repository and its releases contain **no ROM and no game assets**. On first launch the game asks for your own
