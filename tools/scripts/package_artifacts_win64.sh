@@ -1,4 +1,5 @@
 #!/bin/bash
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 BUILDDIR=build_win64/pokeplatinum
 
 cd $BUILDDIR
@@ -11,3 +12,4 @@ cp libgcc_s_seh-1.dll release_win64/libgcc_s_seh-1.dll
 cp libstdc++-6.dll release_win64/libstdc++-6.dll
 cp libwinpthread-1.dll release_win64/libwinpthread-1.dll
 cp SDL2.dll release_win64/SDL2.dll
+"$ROOT/tools/scripts/copy_licenses.sh" release_win64/licenses

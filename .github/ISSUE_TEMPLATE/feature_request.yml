@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for the Gear, a setting, or anything else
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: What it would do, and when you'd use it. If another game or emulator does it, say which.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What it would make easier or better.

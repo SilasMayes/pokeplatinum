@@ -110,6 +110,8 @@ rm -rf "$APP/java/org/libsdl/app"
 cp -r "$DEPS/SDL/android-project/app/src/main/java/org/libsdl/app" "$APP/java/org/libsdl/"
 # Wi-Fi settings placeholder written by the port itself (not DS firmware)
 cp "$ROOT/res/pc_port/dwc_nv.bin" "$APP/assets/firmware.bin"
+# License notices of everything linked in (THIRD_PARTY_LICENSES.md)
+"$ROOT/tools/scripts/copy_licenses.sh" "$APP/assets/licenses"
 
 # 6. APK
 (cd "$ROOT/android" && gradle --no-daemon assembleRelease)

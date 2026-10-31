@@ -1,0 +1,59 @@
+name: Bug report
+description: Something doesn't work, crashes or looks wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't attach ROMs. Only attach a save if you're fine with it being public.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: e.g. AYN Thor, Pixel 8, Windows 11 PC, Steam Deck (Linux)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Android or OS version
+      placeholder: Android 13
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build
+      description: The release you installed (e.g. android-build-28 or thor-android-latest), or the version in Android's app info for "Platinum"
+    validations:
+      required: true
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      options:
+        - Pokémon Platinum (USA)
+        - Renegade Platinum (Complete)
+        - Renegade Platinum (Classic)
+        - Randomized game
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: slot
+    attributes:
+      label: Save slot and roughly where you are in the game
+      placeholder: Slot 2, after the 3rd badge, Route 212
+  - type: textarea
+    id: steps
+    attributes:
+      label: What happened
+      description: Steps to make it happen, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log (for crashes)
+      description: "`adb logcat -s pokeplatinum libntr-display`, or the console output on PC"
+      render: text

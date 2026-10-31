@@ -1,7 +1,8 @@
 [wrap-git]
-# Thor/Android fork: GLES renderer, android target, second-screen output
+# Thor/Android fork: GLES renderer, android target, second-screen output.
+# Pinned to a commit of its thor-android branch; bump it in a commit of its own ("libntr: bump to <sha>").
 url = https://github.com/SilasMayes/libntr.git
-revision = thor-android
+revision = 4dc22b015e88166882380cd11a81ec3bc8e54f6a
 depth = 1
 directory = libntr
 

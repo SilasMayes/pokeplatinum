@@ -23,6 +23,8 @@ android {
     signingConfigs {
         // A fixed key so every CI build can be installed over the previous one.
         // Uninstalling would delete Android/data/org.pokeplatinum.port (and your saves).
+        // The key is public (committed with its password), so anyone can sign an APK that
+        // installs over this app; the README tells players to install from Releases only.
         stable {
             storeFile file('stable.keystore')
             storePassword 'android'

@@ -2,13 +2,17 @@ name: build_android
 
 on:
   push:
-    branches: [ thor-android ]
+    branches: [ platinum-thor ]
+    paths-ignore:
+      - '**.md'
+  # Pull requests get the APK as a run artifact; only pushes to platinum-thor publish a release
+  pull_request:
     paths-ignore:
       - '**.md'
   workflow_dispatch:
 
 permissions:
-  contents: write # the "latest build" pre-release
+  contents: read
 
 concurrency:
   group: build_android-${{ github.ref }}
@@ -28,16 +32,16 @@ jobs:
             gcc-arm-none-eabi
 
       - name: Checkout Repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
           gradle-version: '8.10.2'
 
@@ -77,24 +81,37 @@ jobs:
           PY
 
       - name: Upload APK
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: pokeplatinum-android
           path: android/app/build/outputs/apk/release/app-release.apk
 
-      # A fixed download link for the newest build, so it can be grabbed straight from
-      # the device's browser without signing in to GitHub or unzipping an artifact.
+  # A fixed download link for the newest build, so it can be grabbed straight from
+  # the device's browser without signing in to GitHub or unzipping an artifact.
+  # Its own job so that only this step gets write access.
+  publish_latest:
+    needs: build_android
+    # platinum-thor in this repo only (push or manual run): never forks, pull requests or runs
+    # on other branches (those still get the APK artifact above)
+    if: github.repository_owner == 'SilasMayes' && github.event_name != 'pull_request' && github.ref == 'refs/heads/platinum-thor'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: pokeplatinum-android
+
       - name: Publish latest build
-        # A manual run on another branch (e.g. checking a port-common move) builds and
-        # uploads the APK artifact but leaves the thor-android-latest release alone
-        if: github.ref == 'refs/heads/thor-android'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk pokeplatinum-thor.apk
+          cp app-release.apk pokeplatinum-thor.apk
           gh release delete thor-android-latest --yes --cleanup-tag 2>/dev/null || true
           gh release create thor-android-latest pokeplatinum-thor.apk \
             --prerelease \
             --target "$GITHUB_SHA" \
             --title "Thor Android build (latest)" \
-            --notes "Built from ${GITHUB_SHA::8} (run ${{ github.run_number }}). Code only: on first launch the game asks for your own Pokémon Platinum (US) ROM and extracts its files."
+            --notes "Rolling build of ${GITHUB_SHA::8} (run ${{ github.run_number }}), replaced on every push. For a tested build use the newest numbered release. Code only: on first launch the game asks for your own Pokémon Platinum (US) ROM and extracts its files."
